@@ -1,20 +1,32 @@
-import { Stack } from 'expo-router'
+import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffect } from 'react'
 import * as SecureStore from 'expo-secure-store'
+import * as SplashScreen from 'expo-splash-screen'
+import Constants from 'expo-constants'
+import { initializeKakaoSDK } from '@react-native-kakao/core'
+import { refreshSession } from '@/api/auth'
+
+// bootstrap 완료 전까지 네이티브 스플래시 유지 · Login 화면 flash 방지
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // 이미 hidden 이거나 지원 안 되는 환경 · 무시
+})
 
 /**
  * Root Layout — auth guard + provider 셋업.
  *
- * 플로우:
- *  1. 앱 시작 → SecureStore 에서 JWT 확인
- *  2. JWT 있으면 → (tabs) 홈
- *  3. JWT 없으면 → login 화면
+ * 플로우 (W3):
+ *  1. Kakao SDK 초기화 (모듈 로드 시 1회)
+ *  2. SecureStore JWT 조회
+ *  3. JWT 있음 → GET /users/me 로 세션 검증
+ *     - 200 → (tabs) 자동 진입
+ *     - 401 → interceptor 가 clearAll → login 노출
+ *  4. JWT 없음 → login 화면
  *
- * W2 shell 단계 · 실 Kakao/SIWA 로그인은 W3.
+ * bootstrapping=true 동안 login 화면 노출 (스플래시 대체 · 시각적 잔상 최소)
  */
 
 const queryClient = new QueryClient({
@@ -26,20 +38,86 @@ const queryClient = new QueryClient({
   },
 })
 
-export default function RootLayout() {
-  const setToken = useAuthStore((s) => s.setToken)
+// Kakao SDK 초기화 · runtime 순서:
+//   1) EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY (babel 트랜스폼 · 가장 확실)
+//   2) Constants.expoConfig.extra.kakaoNativeAppKey (manifest)
+const kakaoKey =
+  (process.env.EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY as string | undefined) ||
+  (Constants.expoConfig?.extra?.kakaoNativeAppKey as string | undefined)
 
+if (kakaoKey) {
+  try {
+    initializeKakaoSDK(kakaoKey)
+  } catch (err) {
+    console.warn('[auth] Kakao SDK init 실패', err)
+  }
+} else {
+  console.warn(
+    '[auth] kakaoNativeAppKey 미설정 · .env EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY 확인',
+  )
+}
+
+export default function RootLayout() {
+  const restoreToken = useAuthStore((s) => s.restoreToken)
+  const setSession = useAuthStore((s) => s.setSession)
+  const clearAll = useAuthStore((s) => s.clearAll)
+  const setBootstrapping = useAuthStore((s) => s.setBootstrapping)
+  const token = useAuthStore((s) => s.token)
+  const bootstrapping = useAuthStore((s) => s.bootstrapping)
+
+  const router = useRouter()
+  const segments = useSegments()
+
+  // 앱 시작 · JWT 복원 + me 검증
   useEffect(() => {
-    // 앱 시작 시 저장된 JWT 복원
-    // Simulator (unsigned build) 에서 keychain 접근 실패 가능 · 실 배포에는 정상
-    SecureStore.getItemAsync('jwt')
-      .then((token) => {
-        if (token) setToken(token)
-      })
-      .catch((err) => {
-        console.warn('[auth] SecureStore read failed:', err)
-      })
-  }, [setToken])
+    let cancelled = false
+    ;(async () => {
+      try {
+        const savedToken = await SecureStore.getItemAsync('jwt')
+        if (!savedToken) {
+          if (!cancelled) setBootstrapping(false)
+          return
+        }
+        restoreToken(savedToken)
+        // 백엔드 GET /users/me 없음 · POST /auth/refresh 로 새 accessToken + user 획득
+        const { accessToken, user } = await refreshSession()
+        if (!cancelled) setSession(accessToken, user)
+      } catch {
+        if (!cancelled) {
+          await clearAll()
+        }
+      } finally {
+        if (!cancelled) setBootstrapping(false)
+        // 스플래시는 라우터가 실제 목적지로 이동 완료된 후에 hide (아래 별도 effect)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // 라우터가 최종 목적지 도착 후 스플래시 hide · Login flash 방지
+  useEffect(() => {
+    if (bootstrapping) return
+    const inTabs = segments[0] === '(tabs)'
+    const inLogin = segments[0] === 'login'
+    const arrived = (token && inTabs) || (!token && inLogin)
+    if (arrived) {
+      SplashScreen.hideAsync().catch(() => {})
+    }
+  }, [token, bootstrapping, segments])
+
+  // token 상태에 따라 login ↔ (tabs) 라우팅
+  useEffect(() => {
+    if (bootstrapping) return
+    const inTabs = segments[0] === '(tabs)'
+    if (token && !inTabs) {
+      router.replace('/(tabs)')
+    } else if (!token && inTabs) {
+      router.replace('/login')
+    }
+  }, [token, bootstrapping, segments, router])
 
   return (
     <SafeAreaProvider>
