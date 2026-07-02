@@ -33,20 +33,28 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
 
   setToken: (token) => {
-    SecureStore.setItemAsync('jwt', token)
+    SecureStore.setItemAsync('jwt', token).catch((err) => {
+      console.warn('[auth] SecureStore write failed:', err)
+    })
     set({ token })
   },
 
   setRefreshToken: (refreshToken) => {
-    SecureStore.setItemAsync('refresh', refreshToken)
+    SecureStore.setItemAsync('refresh', refreshToken).catch((err) => {
+      console.warn('[auth] SecureStore write failed:', err)
+    })
     set({ refreshToken })
   },
 
   setUser: (user) => set({ user }),
 
   clearAll: async () => {
-    await SecureStore.deleteItemAsync('jwt')
-    await SecureStore.deleteItemAsync('refresh')
+    try {
+      await SecureStore.deleteItemAsync('jwt')
+      await SecureStore.deleteItemAsync('refresh')
+    } catch (err) {
+      console.warn('[auth] SecureStore delete failed:', err)
+    }
     set({ token: null, refreshToken: null, user: null })
   },
 }))

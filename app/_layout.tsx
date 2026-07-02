@@ -31,9 +31,14 @@ export default function RootLayout() {
 
   useEffect(() => {
     // 앱 시작 시 저장된 JWT 복원
-    SecureStore.getItemAsync('jwt').then((token) => {
-      if (token) setToken(token)
-    })
+    // Simulator (unsigned build) 에서 keychain 접근 실패 가능 · 실 배포에는 정상
+    SecureStore.getItemAsync('jwt')
+      .then((token) => {
+        if (token) setToken(token)
+      })
+      .catch((err) => {
+        console.warn('[auth] SecureStore read failed:', err)
+      })
   }, [setToken])
 
   return (
