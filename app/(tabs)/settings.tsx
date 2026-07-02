@@ -2,6 +2,7 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useRouter } from 'expo-router'
 import { useAuthStore } from '@/stores/authStore'
+import { logout as apiLogout, deleteMyAccount } from '@/api/auth'
 
 /**
  * 설정 화면 — Face ID · 알림 · 로그아웃 · **계정 삭제** (Guideline 5.1.1(v)).
@@ -22,6 +23,7 @@ export default function SettingsScreen() {
         text: '로그아웃',
         style: 'destructive',
         onPress: async () => {
+          await apiLogout() // best-effort · 실패해도 로컬 정리 계속
           await clearAll()
           router.replace('/login')
         },
@@ -30,7 +32,29 @@ export default function SettingsScreen() {
   }
 
   const handleDeleteAccount = () => {
-    Alert.alert('회원 탈퇴', 'W3 에서 백엔드 endpoint 연동 예정입니다.', [{ text: '확인' }])
+    Alert.alert(
+      '회원 탈퇴',
+      '모든 데이터가 삭제되며 복구할 수 없습니다. 정말 진행하시겠습니까?',
+      [
+        { text: '취소', style: 'cancel' },
+        {
+          text: '탈퇴',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteMyAccount()
+              await clearAll()
+              router.replace('/login')
+            } catch {
+              Alert.alert(
+                '탈퇴 실패',
+                '잠시 후 다시 시도해주세요. 문제가 지속되면 문의해주세요.',
+              )
+            }
+          },
+        },
+      ],
+    )
   }
 
   return (
