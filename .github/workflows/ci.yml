@@ -12,6 +12,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # 모든 step 공유 env (expo config plugin 이 요구 · 실제 로그인 X)
+    env:
+      KAKAO_NATIVE_APP_KEY: dummy_for_ci_static_checks_only
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,9 +30,6 @@ jobs:
         run: npm ci
 
       - name: Expo doctor (의존성 · SDK 버전 정합성)
-        # KAKAO_NATIVE_APP_KEY 없이도 검증 가능하도록 dummy 주입
-        env:
-          KAKAO_NATIVE_APP_KEY: dummy_for_ci
         run: npx expo-doctor
 
       - name: TypeScript
