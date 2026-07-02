@@ -71,7 +71,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         CFBundleURLTypes: [
           {
             CFBundleTypeRole: 'Editor',
-            CFBundleURLSchemes: [`kakao${KAKAO_NATIVE_APP_KEY}`],
+            CFBundleURLSchemes: [`kakao${KAKAO_NATIVE_APP_KEY}`, 'chwippo'],
           },
         ],
         KAKAO_APP_KEY: KAKAO_NATIVE_APP_KEY,
