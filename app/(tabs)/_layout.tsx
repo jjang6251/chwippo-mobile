@@ -1,21 +1,45 @@
 import { Tabs } from 'expo-router'
-import { Text, StyleSheet } from 'react-native'
+import { StyleSheet } from 'react-native'
+import { Ionicons } from '@expo/vector-icons'
+import { useThemeStore } from '@/stores/themeStore'
+import { getPalette } from '@/theme/palette'
 
 /**
  * Native Tab bar — Apple 4.2 방어 필수 (웹 네비 절대 노출 X).
  *
- * 4 tabs: 홈 · 알림 · 프로필 · 설정
- * 심사관 첫 인상 = 이 tab bar 가 native 로 보여야 함.
+ * W4 · 5 tabs (웹 MobileNav 매핑):
+ *   캘린더 · 보드 · 회고 · 내정보 · 설정
  *
- * W2 shell 단계 · icon 은 emoji placeholder · W4 에 native icon 교체.
+ * 다크 톤 + 웹 MobileNav 일관 · palette 는 웹 postMessage 브릿지로 sync.
+ * Ionicons `-outline` 계열 · 웹 SVG stroke 아이콘 톤 매칭.
  */
+
+const ICON_SIZE = 22
+
 export default function TabsLayout() {
+  const theme = useThemeStore((s) => s.theme)
+  const palette = getPalette(theme)
+
+  const styles = StyleSheet.create({
+    tabBar: {
+      backgroundColor: palette.surface,
+      borderTopWidth: 1,
+      borderTopColor: palette.line,
+    },
+    tabLabel: {
+      fontSize: 10,
+      fontWeight: '500',
+    },
+  })
+
   return (
     <Tabs
+      initialRouteName="index"
+      backBehavior="initialRoute"
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#6b9c7f',
-        tabBarInactiveTintColor: '#8a8f98',
+        tabBarActiveTintColor: palette.brand,
+        tabBarInactiveTintColor: palette.textQuaternary,
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabLabel,
       }}
@@ -23,35 +47,48 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '홈',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏠</Text>,
+          title: '캘린더',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="calendar-outline" size={ICON_SIZE} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="notifications"
+        name="board"
         options={{
-          title: '알림',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔔</Text>,
+          title: '보드',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="list-outline" size={ICON_SIZE} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="growth"
+        options={{
+          title: '회고',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="grid-outline" size={ICON_SIZE} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="myinfo"
+        options={{
+          title: '내정보',
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="folder-outline" size={ICON_SIZE} color={color} />
+          ),
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: '설정',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>⚙️</Text>,
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="settings-outline" size={ICON_SIZE} color={color} />
+          ),
         }}
       />
     </Tabs>
   )
 }
-
-const styles = StyleSheet.create({
-  tabBar: {
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-  },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '500',
-  },
-})

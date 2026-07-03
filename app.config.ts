@@ -28,12 +28,20 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
   return {
     ...config,
-    name: 'chwippo',
+    name: '치뽀',
     slug: 'chwippo-mobile',
     version: '0.1.0',
     orientation: 'portrait',
     scheme: 'chwippo',
     userInterfaceStyle: 'automatic',
+
+    // App icon · splash · MVP placeholder (심사 제출 전 실 디자인으로 교체 예정)
+    icon: './assets/icon.png',
+    splash: {
+      image: './assets/splash.png',
+      resizeMode: 'contain',
+      backgroundColor: '#1a1816',
+    },
 
     // === iOS ===
     ios: {
@@ -107,6 +115,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // === Android ===
     android: {
       package: 'com.chwippo.app',
+
+      // Adaptive icon · brand 배경 + 워드마크 foreground
+      adaptiveIcon: {
+        foregroundImage: './assets/adaptive-icon.png',
+        backgroundColor: '#6b9c7f',
+      },
 
       // 알림 관련
       permissions: ['NOTIFICATIONS', 'INTERNET', 'ACCESS_NETWORK_STATE'],

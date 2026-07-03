@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Android adaptive icon foreground · 투명 배경 · Android 가 자체 shape · 배경 background 별도 -->
+  <!-- safe zone 내 (66%) 에 로고 배치 -->
+  <text
+    x="512"
+    y="512"
+    font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
+    font-size="380"
+    font-weight="900"
+    fill="#ffffff"
+    text-anchor="middle"
+    dominant-baseline="central"
+    letter-spacing="-16"
+  >치뽀</text>
+</svg>

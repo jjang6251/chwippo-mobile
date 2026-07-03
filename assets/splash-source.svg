@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1284" height="2778" viewBox="0 0 1284 2778">
+  <!-- Splash screen · iOS iPhone 14 Pro Max 표준 · 다크 배경 + 중앙 브랜드 -->
+  <rect width="1284" height="2778" fill="#1a1816"/>
+  <text
+    x="642"
+    y="1389"
+    font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
+    font-size="260"
+    font-weight="900"
+    fill="#6b9c7f"
+    text-anchor="middle"
+    dominant-baseline="central"
+    letter-spacing="-10"
+  >치뽀</text>
+</svg>
