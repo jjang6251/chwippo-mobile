@@ -9,6 +9,14 @@ import * as SplashScreen from 'expo-splash-screen'
 import Constants from 'expo-constants'
 import { initializeKakaoSDK } from '@react-native-kakao/core'
 import { refreshSession } from '@/api/auth'
+import { useThemeStore } from '@/stores/themeStore'
+import { getPalette } from '@/theme/palette'
+
+function ThemedStatusBar() {
+  const theme = useThemeStore((s) => s.theme)
+  const palette = getPalette(theme)
+  return <StatusBar style={palette.statusBarStyle} />
+}
 
 // bootstrap 완료 전까지 네이티브 스플래시 유지 · Login 화면 flash 방지
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -122,7 +130,8 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <StatusBar style="auto" />
+        {/* StatusBar 는 웹 theme 에 따라 dynamic · themed component 아래 */}
+        <ThemedStatusBar />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" />
           <Stack.Screen name="(tabs)" />

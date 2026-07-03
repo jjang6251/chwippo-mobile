@@ -11,18 +11,20 @@ import { useState } from 'react'
 import { useRouter } from 'expo-router'
 import { AxiosError } from 'axios'
 import { login as kakaoLogin } from '@react-native-kakao/user'
-// Apple SIWA · UI 는 hide 상태이지만 함수 구현 유지 · Apple Developer 유료 후 button 복구
 import * as AppleAuthentication from 'expo-apple-authentication'
+import * as WebBrowser from 'expo-web-browser'
+import Constants from 'expo-constants'
+import { Ionicons } from '@expo/vector-icons'
 import { useAuthStore } from '@/stores/authStore'
+import { useThemeStore } from '@/stores/themeStore'
+import { getPalette } from '@/theme/palette'
 import { kakaoNativeLogin, appleNativeLogin } from '@/api/auth'
 
 /**
- * 로그인 화면 · W3 실 SDK 연동.
+ * 로그인 화면 · Kakao 원탭 + (미래 Apple SIWA).
  *
- *  - Kakao: @react-native-kakao/user
- *  - SIWA: expo-apple-authentication (iOS 만 노출)
- *
- * 두 버튼 equal weight (Apple Guideline 4.8).
+ * 다크/라이트 palette 매칭 · 웹 톤 일관.
+ * Toss 톤 · brand 강조 · feature bullet 안내.
  */
 
 type LoadingKind = 'kakao' | 'apple' | null
@@ -36,7 +38,6 @@ function isUserCancelled(err: unknown): boolean {
   if (err && typeof err === 'object') {
     const code = (err as UserCancelledLike).code
     const message = ((err as UserCancelledLike).message ?? '').toLowerCase()
-    // Kakao: 'RNCKakaoUser' error code 시리즈 · Apple: ERR_REQUEST_CANCELED
     if (
       code === 'ERR_REQUEST_CANCELED' ||
       code === 'RNCKakaoUserCancelled' ||
@@ -62,10 +63,26 @@ function extractErrorMessage(err: unknown, fallback: string): string {
   return fallback
 }
 
+const WEB_URL =
+  (Constants.expoConfig?.extra?.webUrl as string | undefined) ??
+  'https://chwippo.com'
+
+const FEATURES = [
+  { icon: 'calendar-outline', text: '마감 · 면접 · 시험을 한눈에' },
+  { icon: 'list-outline', text: '회사별 지원 카드로 진행 상황 관리' },
+  { icon: 'trending-up-outline', text: '성장 지표로 회고까지' },
+] as const
+
 export default function LoginScreen() {
   const setSession = useAuthStore((s) => s.setSession)
+  const theme = useThemeStore((s) => s.theme)
+  const palette = getPalette(theme)
   const router = useRouter()
   const [loading, setLoading] = useState<LoadingKind>(null)
+
+  const openInAppBrowser = (path: string) => {
+    void WebBrowser.openBrowserAsync(`${WEB_URL}${path}`).catch(() => {})
+  }
 
   const handleKakaoLogin = async () => {
     if (loading) return
@@ -123,61 +140,85 @@ export default function LoginScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: palette.bg }]}
+    >
       <View style={styles.brandArea}>
-        <Text style={styles.logo}>치뽀</Text>
-        <Text style={styles.tagline}>취업 준비 · 모든 일정을 한 곳에</Text>
+        <Text style={[styles.logo, { color: palette.brand }]}>치뽀</Text>
+        <Text style={[styles.tagline, { color: palette.textTertiary }]}>
+          취업 준비, 이젠 흩어지지 않게
+        </Text>
       </View>
 
-      <View style={styles.buttonArea}>
-        <Pressable
-          onPress={handleKakaoLogin}
-          disabled={loading !== null}
-          style={({ pressed }) => [
-            styles.button,
-            styles.kakaoButton,
-            pressed && styles.pressed,
-          ]}
-          accessibilityRole="button"
-          accessibilityLabel="카카오로 로그인"
-        >
-          {loading === 'kakao' ? (
-            <ActivityIndicator color="#191919" />
-          ) : (
-            <Text style={styles.kakaoText}>카카오로 로그인</Text>
-          )}
-        </Pressable>
+      <View style={styles.featureArea}>
+        {FEATURES.map((f) => (
+          <View key={f.icon} style={styles.featureRow}>
+            <View
+              style={[
+                styles.featureIcon,
+                { backgroundColor: palette.surface },
+              ]}
+            >
+              <Ionicons name={f.icon} size={18} color={palette.brand} />
+            </View>
+            <Text style={[styles.featureText, { color: palette.textPrimary }]}>
+              {f.text}
+            </Text>
+          </View>
+        ))}
+      </View>
 
-        {/* Apple SIWA — Personal Team 미지원 · Apple Developer 유료 활성화 후 복구
-        {Platform.OS === 'ios' && (
+      <View style={styles.bottomArea}>
+        <View style={styles.buttonArea}>
           <Pressable
-            onPress={handleAppleLogin}
+            onPress={handleKakaoLogin}
             disabled={loading !== null}
             style={({ pressed }) => [
               styles.button,
-              styles.appleButton,
+              styles.kakaoButton,
               pressed && styles.pressed,
             ]}
             accessibilityRole="button"
-            accessibilityLabel="Apple로 로그인"
+            accessibilityLabel="카카오로 로그인"
           >
-            {loading === 'apple' ? (
-              <ActivityIndicator color="#ffffff" />
+            {loading === 'kakao' ? (
+              <ActivityIndicator color="#191919" />
             ) : (
-              <Text style={styles.appleText}> Apple로 로그인</Text>
+              <>
+                <View style={styles.kakaoIconWrap}>
+                  <Ionicons name="chatbubble" size={16} color="#191919" />
+                </View>
+                <Text style={styles.kakaoText}>카카오로 3초만에 시작하기</Text>
+              </>
             )}
           </Pressable>
-        )}
-        */}
-      </View>
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          계속 진행하시면 <Text style={styles.link}>이용약관</Text>
-          {' 및 '}
-          <Text style={styles.link}>개인정보처리방침</Text>에 동의하는 것으로
-          간주됩니다.
-        </Text>
+          {/* Apple SIWA — Personal Team 미지원 · Apple Developer 유료 활성화 후 복구
+          {Platform.OS === 'ios' && (
+            <Pressable ... />
+          )}
+          */}
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={[styles.footerText, { color: palette.textTertiary }]}>
+            로그인 시{' '}
+            <Text
+              onPress={() => openInAppBrowser('/terms')}
+              style={[styles.link, { color: palette.textPrimary }]}
+            >
+              이용약관
+            </Text>
+            {' · '}
+            <Text
+              onPress={() => openInAppBrowser('/privacy')}
+              style={[styles.link, { color: palette.textPrimary }]}
+            >
+              개인정보처리방침
+            </Text>
+            에 동의합니다
+          </Text>
+        </View>
       </View>
     </SafeAreaView>
   )
@@ -186,7 +227,6 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingBottom: 24,
@@ -195,57 +235,75 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingBottom: 40,
   },
   logo: {
-    fontSize: 48,
+    fontSize: 44,
     fontWeight: '800',
-    color: '#6b9c7f',
-    marginBottom: 12,
+    marginBottom: 10,
+    letterSpacing: -0.5,
   },
   tagline: {
-    fontSize: 15,
-    color: '#8a8f98',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  featureArea: {
+    gap: 12,
+    marginBottom: 32,
+    paddingHorizontal: 4,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  featureIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  featureText: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
+  },
+  bottomArea: {
+    gap: 16,
   },
   buttonArea: {
     gap: 10,
   },
   button: {
-    height: 52,
+    height: 54,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: 8,
   },
   kakaoButton: {
     backgroundColor: '#fee500',
   },
+  kakaoIconWrap: {
+    marginRight: 2,
+  },
   kakaoText: {
     color: '#191919',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  appleButton: {
-    backgroundColor: '#000000',
-  },
-  appleText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '700',
   },
   pressed: {
-    opacity: 0.8,
+    opacity: 0.85,
   },
-  footer: {
-    marginTop: 24,
-    paddingHorizontal: 16,
-  },
+  footer: {},
   footerText: {
     fontSize: 12,
-    color: '#8a8f98',
     textAlign: 'center',
     lineHeight: 18,
   },
   link: {
     textDecorationLine: 'underline',
+    fontWeight: '500',
   },
 })
