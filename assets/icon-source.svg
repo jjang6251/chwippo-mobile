@@ -1,19 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- 치뽀 앱 아이콘 · E2안 (ㅊ 모노그램 + 새싹 잎 + coral 열매) · 2026-07-10 CEO 확정 -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- iOS 앱 아이콘 · 1024x1024 정사각 · 투명도 X · round mask 는 iOS 가 자동 -->
-  <!-- 배경: sage brand -->
-  <rect width="1024" height="1024" fill="#6b9c7f"/>
-  <!-- 중앙 워드마크 "치뽀" · 흰색 굵은 폰트 -->
-  <!-- Apple SF Pro 유사 굵기 · 세리프 없는 산세리프 -->
-  <text
-    x="512"
-    y="512"
-    font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif"
-    font-size="440"
-    font-weight="900"
-    fill="#ffffff"
-    text-anchor="middle"
-    dominant-baseline="central"
-    letter-spacing="-20"
-  >치뽀</text>
+  <rect width="1024" height="1024" fill="#1a1816"/>
+  <path d="M 512 330 C 418 318 352 240 360 144 C 464 156 522 240 512 330 Z" fill="#6b9c7f"/>
+  <circle cx="600" cy="196" r="40" fill="#e88b6f"/>
+  <line x1="330" y1="440" x2="694" y2="440" stroke="#6b9c7f" stroke-width="72" stroke-linecap="round"/>
+  <path d="M 512 508 L 368 812" fill="none" stroke="#6b9c7f" stroke-width="72" stroke-linecap="round"/>
+  <path d="M 512 508 L 656 812" fill="none" stroke="#6b9c7f" stroke-width="72" stroke-linecap="round"/>
 </svg>

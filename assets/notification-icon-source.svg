@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Android notification icon · E2 흰 실루엣 (알파만 사용) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <path d="M 48 31 C 39 30 33 22 34 13 C 44 14 49 22 48 31 Z" fill="#ffffff"/>
+  <circle cx="56" cy="18" r="4" fill="#ffffff"/>
+  <line x1="26" y1="42" x2="70" y2="42" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 48 50 L 32 82" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+  <path d="M 48 50 L 64 82" fill="none" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+</svg>

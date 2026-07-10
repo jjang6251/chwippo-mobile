@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Splash · E2 심볼 + 워드마크 · 다크 bg 중앙 (2026-07-10 실디자인 교체) -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1284" height="2778" viewBox="0 0 1284 2778">
-  <rect width="1284" height="2778" fill="#1a1816"/>
-  <g transform="translate(642 1290) scale(0.42) translate(-512 -478)">
+<!-- Android adaptive foreground · E2 심볼 (투명 배경 · 중앙 66% safe zone) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <g transform="translate(512 512) scale(0.62) translate(-512 -512)">
     <path d="M 512 330 C 418 318 352 240 360 144 C 464 156 522 240 512 330 Z" fill="#6b9c7f"/>
     <circle cx="600" cy="196" r="40" fill="#e88b6f"/>
     <line x1="330" y1="440" x2="694" y2="440" stroke="#6b9c7f" stroke-width="72" stroke-linecap="round"/>
     <path d="M 512 508 L 368 812" fill="none" stroke="#6b9c7f" stroke-width="72" stroke-linecap="round"/>
     <path d="M 512 508 L 656 812" fill="none" stroke="#6b9c7f" stroke-width="72" stroke-linecap="round"/>
   </g>
-  <text x="642" y="1610" font-family="Apple SD Gothic Neo" font-size="120" font-weight="800" letter-spacing="-4" fill="#ebe9e3" text-anchor="middle">치뽀</text>
 </svg>
