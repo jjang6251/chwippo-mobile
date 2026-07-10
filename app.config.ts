@@ -107,8 +107,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // App Group (widget + share extension 데이터 공유)
       entitlements: {
         'com.apple.security.application-groups': ['group.com.chwippo.app'],
-        // Apple Developer 유료 계정 활성화 후 복구:
-        // 'com.apple.developer.applesignin': ['Default'],
+        'com.apple.developer.applesignin': ['Default'],
       },
     },
 
@@ -179,17 +178,17 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         },
       ],
 
-      // Sign in with Apple · Personal Team 미지원 · Apple Developer 유료 후 복구
-      // 'expo-apple-authentication',
+      // Sign in with Apple
+      'expo-apple-authentication',
 
-      // Push notifications · Personal Team 미지원 · Apple Developer 유료 후 복구
-      // [
-      //   'expo-notifications',
-      //   {
-      //     icon: './assets/notification-icon.png',
-      //     color: '#ffffff',
-      //   },
-      // ],
+      // Push notifications
+      [
+        'expo-notifications',
+        {
+          icon: './assets/notification-icon.png',
+          color: '#ffffff',
+        },
+      ],
 
       // Local biometric (Face ID / Touch ID)
       'expo-local-authentication',

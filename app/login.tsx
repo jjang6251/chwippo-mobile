@@ -5,6 +5,7 @@ import {
   Pressable,
   ActivityIndicator,
   Alert,
+  Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useState } from 'react'
@@ -88,9 +89,7 @@ export default function LoginScreen() {
     if (loading) return
     setLoading('kakao')
     try {
-      // 검증용 임시 · web 로그인 강제 (KakaoTalk 앱 계정 자동사용 우회)
-      // 실 UX 는 kakaoLogin() 옵션 없이 · 검증 끝나면 revert
-      const kakao = await kakaoLogin({ useKakaoAccountLogin: true })
+      const kakao = await kakaoLogin()
       const result = await kakaoNativeLogin(kakao.accessToken)
       setSession(result.accessToken, result.user)
       router.replace('/(tabs)')
@@ -105,7 +104,6 @@ export default function LoginScreen() {
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleAppleLogin = async () => {
     if (loading) return
     setLoading('apple')
@@ -193,11 +191,26 @@ export default function LoginScreen() {
             )}
           </Pressable>
 
-          {/* Apple SIWA — Personal Team 미지원 · Apple Developer 유료 활성화 후 복구
           {Platform.OS === 'ios' && (
-            <Pressable ... />
+            <View
+              pointerEvents={loading !== null ? 'none' : 'auto'}
+              style={loading === 'apple' && styles.appleLoading}
+            >
+              <AppleAuthentication.AppleAuthenticationButton
+                buttonType={
+                  AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN
+                }
+                buttonStyle={
+                  theme === 'light'
+                    ? AppleAuthentication.AppleAuthenticationButtonStyle.BLACK
+                    : AppleAuthentication.AppleAuthenticationButtonStyle.WHITE
+                }
+                cornerRadius={12}
+                onPress={handleAppleLogin}
+                style={styles.appleButton}
+              />
+            </View>
           )}
-          */}
         </View>
 
         <View style={styles.footer}>
@@ -292,6 +305,13 @@ const styles = StyleSheet.create({
     color: '#191919',
     fontSize: 15,
     fontWeight: '700',
+  },
+  appleButton: {
+    width: '100%',
+    height: 54,
+  },
+  appleLoading: {
+    opacity: 0.6,
   },
   pressed: {
     opacity: 0.85,
