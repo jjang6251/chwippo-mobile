@@ -35,7 +35,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme: 'chwippo',
     userInterfaceStyle: 'automatic',
 
-    // App icon · splash · MVP placeholder (심사 제출 전 실 디자인으로 교체 예정)
+    // App icon · splash · E2안 실디자인 (2026-07-10 확정 — ㅊ 모노그램 + 새싹 잎 + coral 열매. 원본: assets/*-source.svg)
     icon: './assets/icon.png',
     splash: {
       image: './assets/splash.png',
@@ -118,7 +118,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // Adaptive icon · brand 배경 + 워드마크 foreground
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
-        backgroundColor: '#6b9c7f',
+        backgroundColor: '#1a1816', // E2 다크 통일 (iOS 아이콘과 동일 배경)
       },
 
       // 알림 관련
