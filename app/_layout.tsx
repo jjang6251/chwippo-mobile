@@ -11,6 +11,8 @@ import { initializeKakaoSDK } from '@react-native-kakao/core'
 import { refreshSession } from '@/api/auth'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
+import { usePushRegistration } from '@/hooks/usePushRegistration'
+import { useNotificationObserver } from '@/hooks/useNotificationObserver'
 
 function ThemedStatusBar() {
   const theme = useThemeStore((s) => s.theme)
@@ -65,6 +67,18 @@ if (kakaoKey) {
   )
 }
 
+
+/**
+ * Push 토큰 등록 (Step 2) + 수신 핸들러 (Step 3) 실행 전용 무렌더 컴포넌트.
+ * ⚠️ 반드시 QueryClientProvider 안에서 렌더 — useNotificationObserver 가 useQueryClient 사용.
+ * (RootLayout 에서 직접 호출하면 provider 밖이라 시작 즉시 크래시 — 2026-07-11 실기 크래시 원인)
+ */
+function NotificationRuntime() {
+  usePushRegistration()
+  useNotificationObserver()
+  return null
+}
+
 export default function RootLayout() {
   const restoreToken = useAuthStore((s) => s.restoreToken)
   const setSession = useAuthStore((s) => s.setSession)
@@ -75,6 +89,7 @@ export default function RootLayout() {
 
   const router = useRouter()
   const segments = useSegments()
+
 
   // 앱 시작 · JWT 복원 + me 검증
   useEffect(() => {
@@ -130,6 +145,7 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
+        <NotificationRuntime />
         {/* StatusBar 는 웹 theme 에 따라 dynamic · themed component 아래 */}
         <ThemedStatusBar />
         <Stack screenOptions={{ headerShown: false }}>

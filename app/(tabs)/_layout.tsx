@@ -3,6 +3,7 @@ import { StyleSheet } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
+import { NativeHeader } from '@/components/NativeHeader'
 
 /**
  * Native Tab bar — Apple 4.2 방어 필수 (웹 네비 절대 노출 X).
@@ -37,7 +38,8 @@ export default function TabsLayout() {
       initialRouteName="index"
       backBehavior="initialRoute"
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        header: () => <NativeHeader />,
         tabBarActiveTintColor: palette.brand,
         tabBarInactiveTintColor: palette.textQuaternary,
         tabBarStyle: styles.tabBar,
