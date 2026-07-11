@@ -17,6 +17,8 @@ import * as WebBrowser from 'expo-web-browser'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
+import { queryClient } from '@/lib/queryClient'
+import { UNREAD_COUNT_KEY } from '@/hooks/useNotificationBadge'
 import { useWebNavStore } from '@/stores/webNavStore'
 import {
   openNotificationSettingsOrRequest,
@@ -256,6 +258,7 @@ export function AppWebView({ path }: AppWebViewProps) {
         | { type: 'account-deleted' }
         | { type: 'request-notification-permission' }
         | { type: 'open-notification-settings' }
+        | { type: 'notifications-read' }
         | { type: string }
 
       if (msg.type === 'theme') {
@@ -274,7 +277,14 @@ export function AppWebView({ path }: AppWebViewProps) {
           new Promise((resolve) => setTimeout(resolve, 1500)),
         ]).finally(() => {
           void useAuthStore.getState().clearAll()
+          // 계정 전환 잔상 방지 — 이전 계정 배지 캐시 제거
+          queryClient.clear()
         })
+        return
+      }
+      // 웹 알림센터 읽음 처리 완료 → native 종 배지 즉시 갱신
+      if (msg.type === 'notifications-read') {
+        void queryClient.invalidateQueries({ queryKey: UNREAD_COUNT_KEY })
         return
       }
       // soft-ask "알림 받기" → OS 권한 요청 → alarm-prompt 동기화 + 승낙 시 등록.

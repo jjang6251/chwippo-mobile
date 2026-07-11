@@ -1,6 +1,6 @@
 import { Stack, useRouter, useSegments } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffect } from 'react'
@@ -9,6 +9,7 @@ import * as SplashScreen from 'expo-splash-screen'
 import Constants from 'expo-constants'
 import { initializeKakaoSDK } from '@react-native-kakao/core'
 import { refreshSession } from '@/api/auth'
+import { queryClient } from '@/lib/queryClient'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
 import { usePushRegistration } from '@/hooks/usePushRegistration'
@@ -38,15 +39,6 @@ SplashScreen.preventAutoHideAsync().catch(() => {
  *
  * bootstrapping=true 동안 login 화면 노출 (스플래시 대체 · 시각적 잔상 최소)
  */
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      retry: 1,
-    },
-  },
-})
 
 // Kakao SDK 초기화 · runtime 순서:
 //   1) EXPO_PUBLIC_KAKAO_NATIVE_APP_KEY (babel 트랜스폼 · 가장 확실)
