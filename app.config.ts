@@ -203,6 +203,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       webUrl: process.env.EXPO_PUBLIC_WEB_URL ?? 'https://chwippo.com',
       // W3 인증 · runtime 에서 Kakao SDK 초기화 시 필요
       kakaoNativeAppKey: KAKAO_NATIVE_APP_KEY,
+      // EAS 프로젝트 (2026-07-11 eas init) · getExpoPushTokenAsync 의 projectId 소스
+      eas: {
+        projectId: 'f4f64fc8-ffec-46c5-b2e1-8657011680d1',
+      },
     },
 
     experiments: {

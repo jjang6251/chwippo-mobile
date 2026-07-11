@@ -45,8 +45,7 @@
   "submit": {
     "production": {
       "ios": {
-        "ascAppId": "PLACEHOLDER_ASC_APP_ID",
-        "appleTeamId": "PLACEHOLDER_APPLE_TEAM_ID"
+        "appleTeamId": "4Q3P27QUC8"
       },
       "android": {
         "serviceAccountKeyPath": "./credentials/play-service-account.json",
