@@ -45,6 +45,7 @@
   "submit": {
     "production": {
       "ios": {
+        "ascAppId": "6789707709",
         "appleTeamId": "4Q3P27QUC8"
       },
       "android": {
