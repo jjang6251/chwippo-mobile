@@ -1,4 +1,4 @@
-import { Platform } from 'react-native'
+import { Linking, Platform } from 'react-native'
 import * as Notifications from 'expo-notifications'
 import Constants from 'expo-constants'
 import { registerDevice, deleteDevice } from '@/api/devices'
@@ -62,10 +62,15 @@ export async function unregisterCurrentDevice(): Promise<void> {
  * OS 권한 상태 → 서버 동기화.
  * iOS 설정에서 사용자가 알림을 꺼둔 경우의 통계 왜곡 방지 (plan 지침 #10).
  * 호출 측에서 로그인(token) 확인 후 사용.
+ *
+ * ⚠️ undetermined(한 번도 프롬프트 안 뜸)일 땐 호출 금지 —
+ * PATCH /me/alarm-prompt 가 alarmPromptedAt 을 찍어 soft-ask 모달 조건
+ * (alarmPromptedAt == null) 을 영영 소멸시킴 (2026-07-11 실기 발견).
  */
 export async function syncPermissionState(): Promise<void> {
   try {
     const { status } = await Notifications.getPermissionsAsync()
+    if (status === 'undetermined') return
     await syncAlarmPrompt(status === 'granted')
   } catch {
     // best-effort
@@ -80,6 +85,25 @@ export async function registerIfPermitted(): Promise<void> {
   } catch {
     // best-effort
   }
+}
+
+/**
+ * 웹 설정 "알림 권한 설정" CTA — 상태별 분기.
+ *  - undetermined: iOS 설정에 알림 항목이 아직 없어 설정 이동은 막다른 길 →
+ *    OS 프롬프트 직접 요청 (soft-ask 못 본 계정의 복구 경로 겸용)
+ *  - granted/denied: 앱 알림 설정 화면으로 이동 (iOS 재프롬프트 불가 대응)
+ */
+export async function openNotificationSettingsOrRequest(): Promise<void> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync()
+    if (status === 'undetermined') {
+      await requestPermissionAndRegister()
+      return
+    }
+  } catch {
+    // 상태 조회 실패 · 설정 폴백
+  }
+  Linking.openSettings().catch(() => {})
 }
 
 /**

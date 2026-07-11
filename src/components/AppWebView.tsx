@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ActivityIndicator,
-  Linking,
   Platform,
   StyleSheet,
   View,
@@ -20,6 +19,7 @@ import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
 import { useWebNavStore } from '@/stores/webNavStore'
 import {
+  openNotificationSettingsOrRequest,
   requestPermissionAndRegister,
   unregisterCurrentDevice,
 } from '@/utils/push'
@@ -283,9 +283,10 @@ export function AppWebView({ path }: AppWebViewProps) {
         void requestPermissionAndRegister()
         return
       }
-      // 권한 거부 상태에서 "알림 받기" → 앱 설정으로 이동 (iOS 재프롬프트 불가 대응)
+      // 권한 거부 상태에서 "알림 받기" → 앱 설정으로 이동 (iOS 재프롬프트 불가 대응).
+      // undetermined(첫 요청 전)이면 OS 프롬프트 직접 요청 — 헬퍼 참조.
       if (msg.type === 'open-notification-settings') {
-        void Linking.openSettings().catch(() => {})
+        void openNotificationSettingsOrRequest()
         return
       }
     } catch {
