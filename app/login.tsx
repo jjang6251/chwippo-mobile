@@ -124,7 +124,11 @@ export default function LoginScreen() {
             familyName: credential.fullName.familyName,
           }
         : undefined
-      const result = await appleNativeLogin(credential.identityToken, fullName)
+      const result = await appleNativeLogin(
+        credential.identityToken,
+        fullName,
+        credential.authorizationCode,
+      )
       setSession(result.accessToken, result.user)
     } catch (err) {
       if (isUserCancelled(err)) return

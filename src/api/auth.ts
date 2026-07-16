@@ -33,10 +33,13 @@ interface AppleFullName {
 export async function appleNativeLogin(
   identityToken: string,
   fullName?: AppleFullName,
+  authorizationCode?: string | null,
 ): Promise<LoginResponse> {
   const res = await apiClient.post<LoginResponse>('/auth/apple/native', {
     identityToken,
     fullName,
+    // 탈퇴 시 Apple revoke 용 · 첫 로그인/재로그인마다 발급 (best-effort 저장)
+    ...(authorizationCode ? { authorizationCode } : {}),
   })
   return res.data
 }
