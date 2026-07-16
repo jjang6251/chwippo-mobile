@@ -17,15 +17,17 @@ import {
  * ⚠️ 내부 헬퍼 전부 best-effort · 실패해도 로그인/앱 흐름을 절대 깨지 않음.
  */
 export function usePushRegistration(): void {
-  const token = useAuthStore((s) => s.token)
+  // boolean 로그인 여부로 keying — 시간당 accessToken rotation(문자열 변경)마다
+  // 재등록 chatter 가 발생하지 않도록 로그인↔로그아웃 전이에만 반응.
+  const isLoggedIn = useAuthStore((s) => !!s.token)
 
   useEffect(() => {
-    if (!token) {
+    if (!isLoggedIn) {
       void unregisterCurrentDevice()
       return
     }
     // 로그인 · 권한 상태 서버 동기화 + 있으면 자동 등록
     void syncPermissionState()
     void registerIfPermitted()
-  }, [token])
+  }, [isLoggedIn])
 }

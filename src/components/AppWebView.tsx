@@ -39,7 +39,7 @@ import {
  * ## Auth 전달
  *   - Custom User-Agent 에 `chwippo-mobile-webview` 포함 → 웹의 `useNativeMode()` 감지 → MobileNav/Header hide
  *   - iOS WKWebView: `sharedCookiesEnabled` 로 refresh_token httpOnly cookie 자동 공유 → 웹이 /auth/refresh 로 세션 획득
- *   - fallback: `injectedJavaScriptBeforeContentLoaded` 로 accessToken sessionStorage 주입
+ *   - accessToken seed 주입 제거됨 — 쿠키 공유가 유일 경로 (웹 소비처 0 · sessionStorage 평문 토큰 표면 제거)
  *
  * ## 외부 링크 처리 (심사 필수)
  *   - originWhitelist 밖 URL 클릭 시 `expo-web-browser.openBrowserAsync` (SFSafariViewController)
@@ -94,36 +94,19 @@ interface AppWebViewProps {
   path: string
 }
 
-function buildFullUrl(path: string, accessToken: string | null): string {
+function buildFullUrl(path: string): string {
   // native mode flag 를 항상 붙임 · UA 감지 실패 시 폴백
   const separator = path.includes('?') ? '&' : '?'
-  const withNative = `${WEB_URL}${path}${separator}native=1`
-  // accessToken 은 URL 로 넘기지 않음 (히스토리 유출 · injectedJS 로 전달)
-  void accessToken
-  return withNative
-}
-
-function buildInjectedJS(accessToken: string | null): string {
-  // sessionStorage 로 seed 전달 · 웹이 이후 자체 axios refresh 로 갱신
-  if (!accessToken) return ''
-  const escaped = accessToken.replace(/[\\'"]/g, '\\$&')
-  return `
-    try {
-      window.sessionStorage.setItem('chwippo:seed-access-token', '${escaped}');
-    } catch (_) {}
-    true;
-  `
+  return `${WEB_URL}${path}${separator}native=1`
 }
 
 export function AppWebView({ path }: AppWebViewProps) {
-  const token = useAuthStore((s) => s.token)
   const theme = useThemeStore((s) => s.theme)
   const palette = getPalette(theme)
   const webViewRef = useRef<WebView>(null)
   const currentUrlRef = useRef<string | null>(null)
 
-  const fullUrl = useMemo(() => buildFullUrl(path, token), [path, token])
-  const injectedJS = useMemo(() => buildInjectedJS(token), [token])
+  const fullUrl = useMemo(() => buildFullUrl(path), [path])
 
   // native theme 변경 시 · 이 WebView 안 data-theme + localStorage 강제 동기화
   //   - Settings tab 에서 theme 바꿀 때 → Calendar · Board 등 다른 tab WebView 도 즉시 반영
@@ -195,11 +178,11 @@ export function AppWebView({ path }: AppWebViewProps) {
     if (!nav.isFocused?.()) return
     const target = useWebNavStore.getState().target
     if (!target) return
-    const url = buildFullUrl(target, token)
+    const url = buildFullUrl(target)
     webViewRef.current?.injectJavaScript(
       `window.location.href = ${JSON.stringify(url)}; true;`,
     )
-  }, [navNonce, navigation, token])
+  }, [navNonce, navigation])
 
   const isChwippoDomain = useCallback((url: string): boolean => {
     try {
@@ -333,8 +316,6 @@ export function AppWebView({ path }: AppWebViewProps) {
         // iOS Cookie 공유 (refresh_token 자동 왕복)
         sharedCookiesEnabled={Platform.OS === 'ios'}
         thirdPartyCookiesEnabled={Platform.OS === 'android'}
-        // Auth seed 주입 (fallback · cookie 공유가 primary)
-        injectedJavaScriptBeforeContentLoaded={injectedJS}
         // 외부 링크 SFSafariVC 로 이관
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         onMessage={onMessage}

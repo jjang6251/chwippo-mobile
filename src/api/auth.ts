@@ -50,20 +50,8 @@ export async function logout(): Promise<void> {
   })
 }
 
-/**
- * 세션 갱신 · POST /auth/refresh 사용 (백엔드는 /users/me 별도 endpoint 없음).
- * refresh_token cookie 로 인증 · 새 accessToken + user 반환.
- * 앱 시작 시 자동 로그인 · 401 대응에 사용.
- */
-export async function refreshSession(): Promise<{
-  accessToken: string
-  user: AuthUser
-}> {
-  const res = await apiClient.post<{ accessToken: string; user: AuthUser }>(
-    '/auth/refresh',
-  )
-  return res.data
-}
+// 세션 갱신은 client.ts performNativeRefresh() 로 일원화 (인터셉터 없는 plain axios).
+// apiClient 경유 refresh 는 401 재귀·이중 경로 위험이 있어 여기서 제공하지 않는다.
 
 export async function deleteMyAccount(): Promise<void> {
   await apiClient.delete('/users/me')

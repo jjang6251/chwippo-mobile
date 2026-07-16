@@ -8,7 +8,7 @@ import * as SecureStore from 'expo-secure-store'
 import * as SplashScreen from 'expo-splash-screen'
 import Constants from 'expo-constants'
 import { initializeKakaoSDK } from '@react-native-kakao/core'
-import { refreshSession } from '@/api/auth'
+import { performNativeRefresh } from '@/api/client'
 import { queryClient } from '@/lib/queryClient'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
@@ -73,7 +73,6 @@ function NotificationRuntime() {
 
 export default function RootLayout() {
   const restoreToken = useAuthStore((s) => s.restoreToken)
-  const setSession = useAuthStore((s) => s.setSession)
   const clearAll = useAuthStore((s) => s.clearAll)
   const setBootstrapping = useAuthStore((s) => s.setBootstrapping)
   const token = useAuthStore((s) => s.token)
@@ -94,11 +93,16 @@ export default function RootLayout() {
           return
         }
         restoreToken(savedToken)
-        // 백엔드 GET /users/me 없음 · POST /auth/refresh 로 새 accessToken + user 획득
-        const { accessToken, user } = await refreshSession()
-        if (!cancelled) setSession(accessToken, user)
-      } catch {
-        if (!cancelled) {
+        // 백엔드 GET /users/me 없음 · POST /auth/refresh 로 새 accessToken + user 획득.
+        // 성공 시 performNativeRefresh 내부에서 epoch 확인 후 setSession 호출.
+        await performNativeRefresh()
+      } catch (err) {
+        // ⚠️ fallthrough 금지 — response 있는 401 일 때만 clearAll.
+        // 네트워크(response 부재)·409·429·5xx·epoch 변경 → 기존 SecureStore 토큰 유지하고
+        // 로그인 상태로 진행(콜드스타트 순단 보호). 다음 요청·폴링이 자동 복구.
+        const status = (err as { response?: { status?: number } })?.response
+          ?.status
+        if (!cancelled && status === 401) {
           await clearAll()
         }
       } finally {
