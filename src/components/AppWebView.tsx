@@ -17,6 +17,14 @@ import * as WebBrowser from 'expo-web-browser'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
+import { queryClient } from '@/lib/queryClient'
+import { UNREAD_COUNT_KEY } from '@/hooks/useNotificationBadge'
+import { useWebNavStore } from '@/stores/webNavStore'
+import {
+  openNotificationSettingsOrRequest,
+  requestPermissionAndRegister,
+  unregisterCurrentDevice,
+} from '@/utils/push'
 
 /**
  * WebView wrapper — chwippo-front 웹 화면을 감쌈.
@@ -174,6 +182,25 @@ export function AppWebView({ path }: AppWebViewProps) {
     return unsub
   }, [navigation, path, fullUrl])
 
+  // WebView 네비게이션 인텐트 (NativeHeader 종 · push 딥링크) 수신.
+  //   - webNavStore.nonce 변경 시 마운트된 모든 AppWebView 가 effect 실행 →
+  //     focus 된 탭의 WebView 만 자신의 location.href 를 target 으로 이동.
+  //   - 초기 nonce(0) 는 skip · killed 상태 콜드스타트 딥링크도 마운트 후 1회 반영.
+  const navNonce = useWebNavStore((s) => s.nonce)
+  const lastNavNonceRef = useRef(0)
+  useEffect(() => {
+    if (navNonce === lastNavNonceRef.current) return
+    lastNavNonceRef.current = navNonce
+    const nav = navigation as unknown as { isFocused?: () => boolean }
+    if (!nav.isFocused?.()) return
+    const target = useWebNavStore.getState().target
+    if (!target) return
+    const url = buildFullUrl(target, token)
+    webViewRef.current?.injectJavaScript(
+      `window.location.href = ${JSON.stringify(url)}; true;`,
+    )
+  }, [navNonce, navigation, token])
+
   const isChwippoDomain = useCallback((url: string): boolean => {
     try {
       const u = new URL(url)
@@ -229,6 +256,9 @@ export function AppWebView({ path }: AppWebViewProps) {
         | { type: 'theme'; theme: 'dark' | 'light' }
         | { type: 'logout' }
         | { type: 'account-deleted' }
+        | { type: 'request-notification-permission' }
+        | { type: 'open-notification-settings' }
+        | { type: 'notifications-read' }
         | { type: string }
 
       if (msg.type === 'theme') {
@@ -239,8 +269,34 @@ export function AppWebView({ path }: AppWebViewProps) {
         return
       }
       if (msg.type === 'logout' || msg.type === 'account-deleted') {
-        // native 즉시 세션 clear (다음 401 대기 X)
-        void useAuthStore.getState().clearAll()
+        // push 기기 해제를 JWT 삭제 전에 시도 — clearAll 이 SecureStore 를 먼저
+        // 지워 이후의 DELETE /me/devices 가 무인증 401 로 조용히 실패하면
+        // 로그아웃 뒤에도 이전 계정 push 가 계속 도착. 오프라인 대비 1.5s 상한.
+        void Promise.race([
+          unregisterCurrentDevice(),
+          new Promise((resolve) => setTimeout(resolve, 1500)),
+        ]).finally(() => {
+          void useAuthStore.getState().clearAll()
+          // 계정 전환 잔상 방지 — 이전 계정 배지 캐시 제거
+          queryClient.clear()
+        })
+        return
+      }
+      // 웹 알림센터 읽음 처리 완료 → native 종 배지 즉시 갱신
+      if (msg.type === 'notifications-read') {
+        void queryClient.invalidateQueries({ queryKey: UNREAD_COUNT_KEY })
+        return
+      }
+      // soft-ask "알림 받기" → OS 권한 요청 → alarm-prompt 동기화 + 승낙 시 등록.
+      // (웹 PermissionPromptModal 은 fire-and-forget · 응답을 기다리지 않으므로 회신 X)
+      if (msg.type === 'request-notification-permission') {
+        void requestPermissionAndRegister()
+        return
+      }
+      // 권한 거부 상태에서 "알림 받기" → 앱 설정으로 이동 (iOS 재프롬프트 불가 대응).
+      // undetermined(첫 요청 전)이면 OS 프롬프트 직접 요청 — 헬퍼 참조.
+      if (msg.type === 'open-notification-settings') {
+        void openNotificationSettingsOrRequest()
         return
       }
     } catch {
@@ -254,11 +310,11 @@ export function AppWebView({ path }: AppWebViewProps) {
   }, [])
 
   return (
-    // top edge · 상단 노치 · 상태바 (시각 · WiFi) 아래로 콘텐츠 밀어 안전 영역 확보
+    // top 안전 영역은 이제 NativeHeader(Tabs header)가 관리 · 여기선 중복 inset 방지
     // 하단은 native tab bar 가 이미 안전 영역 관리
     <SafeAreaView
       style={[styles.container, { backgroundColor: palette.bg }]}
-      edges={['top']}
+      edges={[]}
     >
       <WebView
         ref={webViewRef}
