@@ -14,6 +14,7 @@ import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
 import { usePushRegistration } from '@/hooks/usePushRegistration'
 import { useNotificationObserver } from '@/hooks/useNotificationObserver'
+import { AppLockGate } from '@/components/AppLockGate'
 
 function ThemedStatusBar() {
   const theme = useThemeStore((s) => s.theme)
@@ -144,10 +145,13 @@ export default function RootLayout() {
         <NotificationRuntime />
         {/* StatusBar 는 웹 theme 에 따라 dynamic · themed component 아래 */}
         <ThemedStatusBar />
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="login" />
-          <Stack.Screen name="(tabs)" />
-        </Stack>
+        {/* ① 앱 잠금 게이트 — 콜드스타트·background 복귀 시 생체 인증 오버레이 */}
+        <AppLockGate>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="login" />
+            <Stack.Screen name="(tabs)" />
+          </Stack>
+        </AppLockGate>
       </QueryClientProvider>
     </SafeAreaProvider>
   )
