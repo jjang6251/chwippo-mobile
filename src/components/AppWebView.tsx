@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Platform,
@@ -25,6 +25,12 @@ import {
   requestPermissionAndRegister,
   unregisterCurrentDevice,
 } from '@/utils/push'
+import {
+  recordValueMomentPrompt,
+  shouldShowValueMomentSoftAsk,
+} from '@/utils/softAsk'
+import { syncAlarmPrompt } from '@/api/notifications'
+import { PermissionSoftAskModal } from '@/components/PermissionSoftAskModal'
 
 /**
  * WebView wrapper — chwippo-front 웹 화면을 감쌈.
@@ -105,6 +111,8 @@ export function AppWebView({ path }: AppWebViewProps) {
   const palette = getPalette(theme)
   const webViewRef = useRef<WebView>(null)
   const currentUrlRef = useRef<string | null>(null)
+  // ⑦ 가치 순간 soft-ask 모달 (deadline-saved 수신 + 쿨다운 통과 시)
+  const [softAskVisible, setSoftAskVisible] = useState(false)
 
   const fullUrl = useMemo(() => buildFullUrl(path), [path])
 
@@ -242,6 +250,7 @@ export function AppWebView({ path }: AppWebViewProps) {
         | { type: 'request-notification-permission' }
         | { type: 'open-notification-settings' }
         | { type: 'notifications-read' }
+        | { type: 'deadline-saved' }
         | { type: string }
 
       if (msg.type === 'theme') {
@@ -282,6 +291,14 @@ export function AppWebView({ path }: AppWebViewProps) {
         void openNotificationSettingsOrRequest()
         return
       }
+      // ⑦ 마감일 저장(가치 순간) → 권한 undetermined + 쿨다운(2주) 통과 시 soft-ask 노출.
+      // OS 프롬프트는 승낙 시에만 (소진 방지). 기존 앱시작 동기화·설정 CTA 경로엔 영향 없음.
+      if (msg.type === 'deadline-saved') {
+        void shouldShowValueMomentSoftAsk().then((show) => {
+          if (show) setSoftAskVisible(true)
+        })
+        return
+      }
     } catch {
       // JSON 파싱 실패 · 무시 (외부 postMessage 방어)
     }
@@ -290,6 +307,20 @@ export function AppWebView({ path }: AppWebViewProps) {
   const onNavigationStateChange = useCallback((nav: WebViewNavigation) => {
     currentUrlRef.current = nav.url
     // 필요 시 URL 관찰 (예: /login redirect 감지 → native logout 트리거) · W4 B 에서 확장
+  }, [])
+
+  // ⑦ soft-ask '알림 받기' — 로컬 앵커 갱신 + OS 권한 요청/등록 (승낙 시 서버도 동기화)
+  const handleSoftAskAllow = useCallback(() => {
+    setSoftAskVisible(false)
+    void recordValueMomentPrompt()
+    void requestPermissionAndRegister()
+  }, [])
+
+  // ⑦ soft-ask '나중에' — 로컬 쿨다운 앵커 + 서버 promptedAt 기록 (기존 계약 재사용)
+  const handleSoftAskDismiss = useCallback(() => {
+    setSoftAskVisible(false)
+    void recordValueMomentPrompt()
+    void syncAlarmPrompt(false).catch(() => {})
   }, [])
 
   return (
@@ -328,6 +359,11 @@ export function AppWebView({ path }: AppWebViewProps) {
             <ActivityIndicator color={palette.brand} />
           </View>
         )}
+      />
+      <PermissionSoftAskModal
+        visible={softAskVisible}
+        onAllow={handleSoftAskAllow}
+        onDismiss={handleSoftAskDismiss}
       />
     </SafeAreaView>
   )
