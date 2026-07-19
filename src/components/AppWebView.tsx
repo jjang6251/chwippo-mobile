@@ -306,6 +306,26 @@ export function AppWebView({ path }: AppWebViewProps) {
     }
   }, [])
 
+  /**
+   * target="_blank" 링크 (공고 URL 등) — iOS WKWebView 는 "새 창 요청" 경로로 가서
+   * onShouldStartLoadWithRequest 를 타지 않는다. 핸들러가 없으면 클릭 무반응
+   * (2026-07-20 CEO 실기 발견). 외부 도메인은 SFSafariVC, 내부는 현 웹뷰에서 이동.
+   */
+  const onOpenWindow = useCallback(
+    (event: { nativeEvent: { targetUrl?: string } }) => {
+      const targetUrl = event.nativeEvent?.targetUrl
+      if (!targetUrl) return
+      if (isChwippoDomain(targetUrl)) {
+        webViewRef.current?.injectJavaScript(
+          `window.location.href = ${JSON.stringify(targetUrl)}; true;`,
+        )
+      } else {
+        void WebBrowser.openBrowserAsync(targetUrl).catch(() => {})
+      }
+    },
+    [isChwippoDomain],
+  )
+
   const onShouldStartLoadWithRequest = useCallback(
     (request: ShouldStartLoadRequest): boolean => {
       const url = request.url
@@ -461,6 +481,7 @@ export function AppWebView({ path }: AppWebViewProps) {
         thirdPartyCookiesEnabled={Platform.OS === 'android'}
         // 외부 링크 SFSafariVC 로 이관
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
+        onOpenWindow={onOpenWindow}
         onMessage={onMessage}
         onNavigationStateChange={onNavigationStateChange}
         // ② 네트워크 로드 에러 → 오프라인 화면 (Safari 흰 에러 화면 방지)
