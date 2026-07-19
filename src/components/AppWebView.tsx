@@ -10,11 +10,15 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview'
 import { useNavigation } from 'expo-router'
 import type {
   ShouldStartLoadRequest,
+  WebViewErrorEvent,
   WebViewNavigation,
 } from 'react-native-webview/lib/WebViewTypes'
 import Constants from 'expo-constants'
 import * as WebBrowser from 'expo-web-browser'
+import * as Network from 'expo-network'
 import { useAuthStore } from '@/stores/authStore'
+import { useAppLockStore } from '@/stores/appLockStore'
+import { OfflineScreen } from '@/components/OfflineScreen'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
 import { queryClient } from '@/lib/queryClient'
@@ -59,15 +63,39 @@ const WEB_URL =
   (Constants.expoConfig?.extra?.webUrl as string | undefined) ??
   'https://chwippo.com'
 
+/**
+ * WEB_URL 의 호스트 — dev(localhost · 127.0.0.1 · LAN IP)를 하드코딩 없이
+ * WebView 허용 판정에 반영. prod 는 chwippo.com.
+ */
+const WEB_HOST = (() => {
+  try {
+    return new URL(WEB_URL).hostname
+  } catch {
+    return ''
+  }
+})()
+
 const CUSTOM_USER_AGENT = `chwippo-mobile-webview/${
   (Constants.expoConfig?.version as string | undefined) ?? '0.1.0'
 }`
 
+/**
+ * WebView 안 로드를 허용하는 origin (Apple 4.2 · G6 origin 제한).
+ *   - chwippo 계열: 앱 웹 화면 · API
+ *   - kauth/kapi.kakao.com: 웹 로그인 잔존 OAuth 흐름(웹 /login → api /auth/kakao
+ *     → 302 kauth.kakao.com → kapi.kakao.com)을 위해 유지. SFSafariVC 로 열면
+ *     세션 쿠키가 WebView 로 돌아오지 않아 로그인 복구가 깨지므로 반드시 WebView
+ *     안에서 처리해야 함 (정당한 인증 도메인 예외 · 심사 가이드 허용).
+ *     평상시 네이티브 로그인은 Kakao SDK 원탭 · SIWA 네이티브라 이 경로 미사용.
+ *   - http://localhost · 127.0.0.1: 로컬 개발용 (EXPO_PUBLIC_WEB_URL=http://localhost:5173)
+ */
 const ORIGIN_WHITELIST = [
   'https://*.chwippo.com',
   'https://chwippo.com',
   'https://kauth.kakao.com',
   'https://kapi.kakao.com',
+  'http://localhost:*',
+  'http://127.0.0.1:*',
 ]
 
 /**
@@ -83,6 +111,13 @@ const BLOCKED_DOMAINS = [
   'googletagmanager.com',
   'adservice.google.com',
 ]
+
+/**
+ * ② 오프라인으로 간주할 WebView 로드 에러 코드 (iOS NSURLError · 네트워크 가용성 계열).
+ *   -1009 미연결 · -1001 타임아웃 · -1004 호스트 연결 실패 · -1005 연결 유실 · -1003 호스트 못 찾음.
+ * SSL(-1200)·잘못된 URL(-1000)·서버 응답 오류(-1011) 등은 오프라인이 아니므로 제외.
+ */
+const NETWORK_ERROR_CODES = new Set([-1009, -1001, -1004, -1005, -1003])
 
 function isBlockedDomain(url: string): boolean {
   try {
@@ -114,7 +149,67 @@ export function AppWebView({ path }: AppWebViewProps) {
   // ⑦ 가치 순간 soft-ask 모달 (deadline-saved 수신 + 쿨다운 통과 시)
   const [softAskVisible, setSoftAskVisible] = useState(false)
 
+  // ② 오프라인 감지 — 네트워크 미연결 또는 WebView 로드 에러(네트워크 계열)
+  const netState = Network.useNetworkState()
+  const [loadError, setLoadError] = useState(false)
+  const offline = netState.isConnected === false || loadError
+
   const fullUrl = useMemo(() => buildFullUrl(path), [path])
+
+  // ② 연결 복구 시 자동 복귀 — 오프라인이었다가 다시 연결되면 loadError 해제 + reload
+  const wasOfflineRef = useRef(false)
+  useEffect(() => {
+    if (netState.isConnected === false) {
+      wasOfflineRef.current = true
+    } else if (netState.isConnected === true && wasOfflineRef.current) {
+      wasOfflineRef.current = false
+      setLoadError(false)
+      webViewRef.current?.reload()
+    }
+  }, [netState.isConnected])
+
+  // ② WebView 네트워크 로드 에러 → 오프라인 화면 (Safari 흰 에러 화면 노출 방지).
+  // iOS NSURLError 중 네트워크 가용성 계열만 처리 (SSL·잘못된 URL·서버 응답 오류 제외).
+  const onError = useCallback((e: WebViewErrorEvent) => {
+    if (NETWORK_ERROR_CODES.has(e.nativeEvent.code)) {
+      setLoadError(true)
+    }
+  }, [])
+
+  const handleOfflineRetry = useCallback(() => {
+    setLoadError(false)
+    webViewRef.current?.reload()
+  }, [])
+
+  // ① 앱 잠금 상태 회신 — 웹으로 CustomEvent(chwippo:app-lock-state) 주입.
+  //   native → web 은 injectJavaScript 관례 (theme·navigation 동일).
+  const replyAppLockState = useCallback(() => {
+    const { enabled, supported } = useAppLockStore.getState()
+    const detail = JSON.stringify({ supported, enabled })
+    webViewRef.current?.injectJavaScript(`
+      try {
+        window.dispatchEvent(new CustomEvent('chwippo:app-lock-state', { detail: ${detail} }));
+      } catch (_) {}
+      true;
+    `)
+  }, [])
+
+  // ① 웹 설정 "앱 잠금" 섹션 → 현재 상태 조회
+  const handleGetAppLock = useCallback(async () => {
+    await useAppLockStore.getState().ensureHydrated()
+    replyAppLockState()
+  }, [replyAppLockState])
+
+  // ① 웹 설정 토글 → 앱 잠금 on/off 저장 (지원 기기에서만) + 상태 회신
+  const handleSetAppLock = useCallback(
+    async (enabled: boolean) => {
+      const store = useAppLockStore.getState()
+      await store.ensureHydrated()
+      if (store.supported) await store.setEnabled(enabled)
+      replyAppLockState()
+    },
+    [replyAppLockState],
+  )
 
   // native theme 변경 시 · 이 WebView 안 data-theme + localStorage 강제 동기화
   //   - Settings tab 에서 theme 바꿀 때 → Calendar · Board 등 다른 tab WebView 도 즉시 반영
@@ -198,8 +293,13 @@ export function AppWebView({ path }: AppWebViewProps) {
       return (
         u.hostname === 'chwippo.com' ||
         u.hostname.endsWith('.chwippo.com') ||
+        // 카카오 OAuth 잔존 흐름 (ORIGIN_WHITELIST 주석 참조)
         u.hostname === 'kauth.kakao.com' ||
-        u.hostname === 'kapi.kakao.com'
+        u.hostname === 'kapi.kakao.com' ||
+        // 로컬 개발 (localhost · 127.0.0.1 · LAN IP = WEB_HOST)
+        u.hostname === 'localhost' ||
+        u.hostname === '127.0.0.1' ||
+        (WEB_HOST !== '' && u.hostname === WEB_HOST)
       )
     } catch {
       return false
@@ -251,6 +351,8 @@ export function AppWebView({ path }: AppWebViewProps) {
         | { type: 'open-notification-settings' }
         | { type: 'notifications-read' }
         | { type: 'deadline-saved' }
+        | { type: 'get-app-lock' }
+        | { type: 'set-app-lock'; enabled: boolean }
         | { type: string }
 
       if (msg.type === 'theme') {
@@ -299,10 +401,20 @@ export function AppWebView({ path }: AppWebViewProps) {
         })
         return
       }
+      // ① 앱 잠금 — 웹 설정 섹션 상태 조회 (지원 여부 + 현재 on/off 회신)
+      if (msg.type === 'get-app-lock') {
+        void handleGetAppLock()
+        return
+      }
+      // ① 앱 잠금 — 웹 설정 토글 → 저장 + 상태 회신
+      if (msg.type === 'set-app-lock') {
+        void handleSetAppLock((msg as { enabled?: unknown }).enabled === true)
+        return
+      }
     } catch {
       // JSON 파싱 실패 · 무시 (외부 postMessage 방어)
     }
-  }, [])
+  }, [handleGetAppLock, handleSetAppLock])
 
   const onNavigationStateChange = useCallback((nav: WebViewNavigation) => {
     currentUrlRef.current = nav.url
@@ -351,6 +463,8 @@ export function AppWebView({ path }: AppWebViewProps) {
         onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
         onMessage={onMessage}
         onNavigationStateChange={onNavigationStateChange}
+        // ② 네트워크 로드 에러 → 오프라인 화면 (Safari 흰 에러 화면 방지)
+        onError={onError}
         startInLoadingState={true}
         renderLoading={() => (
           <View
@@ -365,6 +479,8 @@ export function AppWebView({ path }: AppWebViewProps) {
         onAllow={handleSoftAskAllow}
         onDismiss={handleSoftAskDismiss}
       />
+      {/* ② 오프라인 오버레이 — 네트워크 미연결 또는 로드 에러 시 */}
+      {offline && <OfflineScreen onRetry={handleOfflineRetry} />}
     </SafeAreaView>
   )
 }
