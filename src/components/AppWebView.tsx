@@ -130,9 +130,47 @@ function isBlockedDomain(url: string): boolean {
   }
 }
 
+/** 앱(chwippo-front) · API 호스트인지 — kakao OAuth 도메인은 제외. */
+function isAppHost(hostname: string): boolean {
+  return (
+    hostname === 'chwippo.com' ||
+    hostname.endsWith('.chwippo.com') ||
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    (WEB_HOST !== '' && hostname === WEB_HOST)
+  )
+}
+
+const DEMO_AUTH_EXIT_PATHS = new Set(['/', '/login', '/login/callback'])
+
+/**
+ * 데모(비로그인) 웹뷰 안에서 `/demo` 밖 "로그인·랜딩·OAuth 시작" URL 인지.
+ *   - 둘러보기 종료(→ '/'), 로그인(→ '/login'), 소셜 로그인 시작(→ '/auth/*')
+ *   - 앱/ API 호스트만 대상 (kakao OAuth 도메인은 여기 오기 전 '/auth/*' 에서 이미 가로챔)
+ * true 면 웹 로그인·OAuth 를 웹뷰에서 열지 않고 네이티브 로그인 화면으로 복귀시킨다.
+ */
+function isDemoAuthExit(url: string): boolean {
+  try {
+    const u = new URL(url)
+    if (!isAppHost(u.hostname)) return false
+    return DEMO_AUTH_EXIT_PATHS.has(u.pathname) || u.pathname.startsWith('/auth/')
+  } catch {
+    return false
+  }
+}
+
 interface AppWebViewProps {
   /** WebView 안에서 표시할 웹 페이지 path (예: '/calendar') */
   path: string
+  /**
+   * 데모(비로그인) 모드 — `/demo/calendar` 등 공개 라우트 전용.
+   *   - `/demo` 밖 로그인·랜딩·OAuth 이탈 URL 을 가로채 onExitDemo 로 네이티브 복귀
+   *   - deadline-saved soft-ask(푸시 권한) 억제 (비로그인 권한 요청 부적절)
+   *   - NativeHeader(탭 헤더)가 없으므로 상단 안전영역을 이 컴포넌트가 직접 처리
+   */
+  demo?: boolean
+  /** 데모 이탈 감지 시 호출 — 네이티브 로그인 화면으로 복귀 (예: router.back()) */
+  onExitDemo?: () => void
 }
 
 function buildFullUrl(path: string): string {
@@ -141,11 +179,18 @@ function buildFullUrl(path: string): string {
   return `${WEB_URL}${path}${separator}native=1`
 }
 
-export function AppWebView({ path }: AppWebViewProps) {
+export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) {
   const theme = useThemeStore((s) => s.theme)
   const palette = getPalette(theme)
   const webViewRef = useRef<WebView>(null)
   const currentUrlRef = useRef<string | null>(null)
+  // 데모 이탈은 1회만 트리거 (onNavigationStateChange 다중 발화 · 중복 복귀 방지)
+  const exitedRef = useRef(false)
+  const exitDemo = useCallback(() => {
+    if (exitedRef.current) return
+    exitedRef.current = true
+    onExitDemo?.()
+  }, [onExitDemo])
   // ⑦ 가치 순간 soft-ask 모달 (deadline-saved 수신 + 쿨다운 통과 시)
   const [softAskVisible, setSoftAskVisible] = useState(false)
 
@@ -343,6 +388,13 @@ export function AppWebView({ path }: AppWebViewProps) {
       // 광고 · 트래킹 → 조용히 차단 (SFSafariVC 열지도 않음)
       if (isBlockedDomain(url)) return false
 
+      // 데모(비로그인) — 로그인·랜딩·OAuth 이탈은 웹뷰에서 열지 않고 네이티브 로그인 복귀.
+      // isChwippoDomain 판정보다 먼저 (그렇지 않으면 '/auth/*' 가 그대로 로드됨).
+      if (demo && isDemoAuthExit(url)) {
+        exitDemo()
+        return false
+      }
+
       // 도메인 안 → WebView 로 유지
       if (isChwippoDomain(url)) return true
 
@@ -358,7 +410,7 @@ export function AppWebView({ path }: AppWebViewProps) {
       void WebBrowser.openBrowserAsync(url).catch(() => {})
       return false
     },
-    [isChwippoDomain],
+    [isChwippoDomain, demo, exitDemo],
   )
 
   const onMessage = useCallback((e: WebViewMessageEvent) => {
@@ -416,6 +468,9 @@ export function AppWebView({ path }: AppWebViewProps) {
       // ⑦ 마감일 저장(가치 순간) → 권한 undetermined + 쿨다운(2주) 통과 시 soft-ask 노출.
       // OS 프롬프트는 승낙 시에만 (소진 방지). 기존 앱시작 동기화·설정 CTA 경로엔 영향 없음.
       if (msg.type === 'deadline-saved') {
+        // 데모(비로그인)에선 soft-ask 억제 — 권한 요청은 로그인 사용자 전용.
+        // (프론트도 데모 모드에서 미발신 · 여기선 이중 방어)
+        if (demo) return
         void shouldShowValueMomentSoftAsk().then((show) => {
           if (show) setSoftAskVisible(true)
         })
@@ -434,12 +489,15 @@ export function AppWebView({ path }: AppWebViewProps) {
     } catch {
       // JSON 파싱 실패 · 무시 (외부 postMessage 방어)
     }
-  }, [handleGetAppLock, handleSetAppLock])
+  }, [handleGetAppLock, handleSetAppLock, demo])
 
   const onNavigationStateChange = useCallback((nav: WebViewNavigation) => {
     currentUrlRef.current = nav.url
-    // 필요 시 URL 관찰 (예: /login redirect 감지 → native logout 트리거) · W4 B 에서 확장
-  }, [])
+    // 데모 SPA 이동(예: 배너 "둘러보기 종료" → '/') 감지 — iOS webview 의 history shim 이
+    // pushState/replaceState/popstate 를 이 콜백으로 보고하므로 SPA 이탈도 잡힌다.
+    // (full navigation 인 '/auth/*' OAuth 는 onShouldStartLoadWithRequest 가 먼저 가로챔)
+    if (demo && isDemoAuthExit(nav.url)) exitDemo()
+  }, [demo, exitDemo])
 
   // ⑦ soft-ask '알림 받기' — 로컬 앵커 갱신 + OS 권한 요청/등록 (승낙 시 서버도 동기화)
   const handleSoftAskAllow = useCallback(() => {
@@ -456,11 +514,11 @@ export function AppWebView({ path }: AppWebViewProps) {
   }, [])
 
   return (
-    // top 안전 영역은 이제 NativeHeader(Tabs header)가 관리 · 여기선 중복 inset 방지
-    // 하단은 native tab bar 가 이미 안전 영역 관리
+    // 탭 화면: top 은 NativeHeader(Tabs header), bottom 은 native tab bar 가 관리 → 중복 inset 방지(edges=[]).
+    // 데모 화면: 탭·헤더가 없는 단일 스크린이라 상단 안전영역(노치·상태바)을 여기서 직접 처리.
     <SafeAreaView
       style={[styles.container, { backgroundColor: palette.bg }]}
-      edges={[]}
+      edges={demo ? ['top'] : []}
     >
       <WebView
         ref={webViewRef}

@@ -217,6 +217,19 @@ export default function LoginScreen() {
           )}
         </View>
 
+        {/* 로그인 없이 둘러보기 — 데모 스크린(웹뷰 /demo/calendar) 진입 */}
+        <Pressable
+          onPress={() => router.push('/demo')}
+          disabled={loading !== null}
+          style={({ pressed }) => [styles.demoButton, pressed && styles.pressed]}
+          accessibilityRole="button"
+          accessibilityLabel="로그인 없이 둘러보기"
+        >
+          <Text style={[styles.demoText, { color: palette.textTertiary }]}>
+            로그인 없이 둘러보기
+          </Text>
+        </Pressable>
+
         <View style={styles.footer}>
           <Text style={[styles.footerText, { color: palette.textTertiary }]}>
             로그인 시{' '}
@@ -319,6 +332,15 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.85,
+  },
+  demoButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  demoText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   footer: {},
   footerText: {
