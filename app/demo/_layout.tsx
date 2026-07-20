@@ -1,23 +1,21 @@
 import { Tabs } from 'expo-router'
-
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
-import { NativeHeader } from '@/components/NativeHeader'
 import { TAB_META, TAB_ICON_SIZE, makeTabBarOptions } from '@/navigation/tabMeta'
 
 /**
- * Native Tab bar — Apple 4.2 방어 필수 (웹 네비 절대 노출 X).
+ * 데모(둘러보기) 하단 탭 — 실서비스 (tabs) 를 미러. 탭 정의는 @/navigation/tabMeta 공유.
  *
- * W4 · 5 tabs (웹 MobileNav 매핑):
- *   캘린더 · 보드 · 회고 · 내정보 · 설정
- *
- * 탭 정의(name·title·아이콘·순서)는 @/navigation/tabMeta 로 데모 탭(app/demo/)과 공유.
- * 다크 톤 + 웹 MobileNav 일관 · palette 는 웹 postMessage 브릿지로 sync.
- * Ionicons `-outline` 계열 · 웹 SVG stroke 아이콘 톤 매칭.
+ * 실서비스와 다른 점:
+ *   - 비로그인 공개 · 그룹(`(demo-tabs)`)이 아닌 일반 중첩 라우트(app/demo/)라 네이티브
+ *     경로가 `/demo/*` → 실서비스 `(tabs)`(`/board` 등)와 URL 충돌 없음.
+ *   - NativeHeader 미노출: 알림 벨은 로그인 전용이고 데모에서 누르면 웹뷰가 /notifications →
+ *     AuthGuard 로 이탈해버림. 상단 안전영역은 각 탭 AppWebView(demo=true)가 처리하고,
+ *     "둘러보는 중" 안내·둘러보기 종료·가입 유도는 웹 DemoBanner 가 담당.
  */
 
-export default function TabsLayout() {
+export default function DemoTabsLayout() {
   const theme = useThemeStore((s) => s.theme)
   const palette = getPalette(theme)
 
@@ -26,8 +24,7 @@ export default function TabsLayout() {
       initialRouteName="index"
       backBehavior="initialRoute"
       screenOptions={{
-        headerShown: true,
-        header: () => <NativeHeader />,
+        headerShown: false,
         ...makeTabBarOptions(palette),
       }}
     >
