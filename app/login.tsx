@@ -217,7 +217,7 @@ export default function LoginScreen() {
           )}
         </View>
 
-        {/* 로그인 없이 둘러보기 — 데모 스크린(웹뷰 /demo/calendar) 진입 */}
+        {/* 로그인 없이 둘러보기 — 데모 탭 그룹(app/demo/ · 실서비스 미러) 진입 */}
         <Pressable
           onPress={() => router.push('/demo')}
           disabled={loading !== null}

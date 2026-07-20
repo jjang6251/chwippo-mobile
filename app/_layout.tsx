@@ -150,7 +150,7 @@ export default function RootLayout() {
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="login" />
             <Stack.Screen name="(tabs)" />
-            {/* 데모(둘러보기) — 비로그인 공개 · 탭 밖 단일 스크린 */}
+            {/* 데모(둘러보기) — 비로그인 공개 · app/demo/ 중첩 탭 네비게이터(실서비스 (tabs) 미러) */}
             <Stack.Screen name="demo" />
           </Stack>
         </AppLockGate>
