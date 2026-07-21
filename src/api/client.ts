@@ -126,6 +126,7 @@ const AUTH_RETRY_EXCLUDED = [
   '/auth/refresh',
   '/auth/kakao/native',
   '/auth/apple/native',
+  '/auth/reviewer-login',
   '/auth/logout',
 ]
 
