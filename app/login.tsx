@@ -6,9 +6,12 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'expo-router'
 import { AxiosError } from 'axios'
 import { login as kakaoLogin } from '@react-native-kakao/user'
@@ -19,7 +22,14 @@ import { Ionicons } from '@expo/vector-icons'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
-import { kakaoNativeLogin, appleNativeLogin } from '@/api/auth'
+import { kakaoNativeLogin, appleNativeLogin, reviewerLogin } from '@/api/auth'
+
+/**
+ * App Review(Guideline 2.1) 리뷰어 로그인 게이트 플래그 — 빌드 타임 상수.
+ * EXPO_PUBLIC_REVIEWER_MODE 는 Expo 가 빌드 시 인라인 (eas.json production env 로 제어).
+ * 평소 빌드엔 미설정 → 로고 7탭 제스처 완전 무반응(일반 사용자 노출 0). 심사 제출용 빌드에서만 '1'.
+ */
+const REVIEWER_MODE = process.env.EXPO_PUBLIC_REVIEWER_MODE === '1'
 
 /**
  * 로그인 화면 · Kakao 원탭 + (미래 Apple SIWA).
@@ -28,7 +38,7 @@ import { kakaoNativeLogin, appleNativeLogin } from '@/api/auth'
  * Toss 톤 · brand 강조 · feature bullet 안내.
  */
 
-type LoadingKind = 'kakao' | 'apple' | null
+type LoadingKind = 'kakao' | 'apple' | 'reviewer' | null
 
 interface UserCancelledLike {
   code?: string
@@ -80,6 +90,41 @@ export default function LoginScreen() {
   const palette = getPalette(theme)
   const router = useRouter()
   const [loading, setLoading] = useState<LoadingKind>(null)
+
+  // App Review 리뷰어 로그인 (숨김 · REVIEWER_MODE 빌드에서만)
+  const [reviewerOpen, setReviewerOpen] = useState(false)
+  const [reviewerEmail, setReviewerEmail] = useState('')
+  const [reviewerPassword, setReviewerPassword] = useState('')
+
+  // 로고 7탭 숨김 제스처 — 심사관 전용 리뷰어 로그인 진입 (일반 사용자 노출 0)
+  const logoTapCount = useRef(0)
+  const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const clearLogoTapTimer = () => {
+    if (logoTapTimer.current) {
+      clearTimeout(logoTapTimer.current)
+      logoTapTimer.current = null
+    }
+  }
+
+  // 마지막 탭에서 2초 지나면 카운터 리셋 (우발 누적 방지)
+  const handleLogoTap = () => {
+    // 플래그 OFF 빌드에선 제스처 완전 무반응 (카운터 자체 미동작)
+    if (!REVIEWER_MODE) return
+    logoTapCount.current += 1
+    clearLogoTapTimer()
+    if (logoTapCount.current >= 7) {
+      logoTapCount.current = 0
+      setReviewerOpen(true)
+      return
+    }
+    logoTapTimer.current = setTimeout(() => {
+      logoTapCount.current = 0
+      logoTapTimer.current = null
+    }, 2000)
+  }
+
+  useEffect(() => clearLogoTapTimer, [])
 
   const openInAppBrowser = (path: string) => {
     void WebBrowser.openBrowserAsync(`${WEB_URL}${path}`).catch(() => {})
@@ -141,12 +186,40 @@ export default function LoginScreen() {
     }
   }
 
+  const handleReviewerLogin = async () => {
+    if (loading) return
+    const email = reviewerEmail.trim()
+    if (!email || !reviewerPassword) return
+    setLoading('reviewer')
+    try {
+      const result = await reviewerLogin(email, reviewerPassword)
+      setSession(result.accessToken, result.user)
+      setReviewerOpen(false)
+      setReviewerPassword('')
+      router.replace('/(tabs)')
+    } catch (err) {
+      Alert.alert(
+        '로그인 실패',
+        extractErrorMessage(err, '알 수 없는 오류가 발생했습니다.'),
+      )
+    } finally {
+      setLoading(null)
+    }
+  }
+
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: palette.bg }]}
     >
       <View style={styles.brandArea}>
-        <Text style={[styles.logo, { color: palette.brand }]}>치뽀</Text>
+        {/* 숨김 제스처: 7연속 탭 → 리뷰어 로그인. 장식 요소 유지 — accessibilityRole 없음(스크린리더에 버튼 미노출) · suppressHighlighting 으로 시각 변화 0 */}
+        <Text
+          style={[styles.logo, { color: palette.brand }]}
+          onPress={handleLogoTap}
+          suppressHighlighting
+        >
+          치뽀
+        </Text>
         <Text style={[styles.tagline, { color: palette.textTertiary }]}>
           취업 준비, 이젠 흩어지지 않게
         </Text>
@@ -250,6 +323,108 @@ export default function LoginScreen() {
           </Text>
         </View>
       </View>
+
+      {/* 리뷰어 로그인 폼 (숨김 · 심사관 우회) */}
+      <Modal
+        visible={reviewerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setReviewerOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.modalOverlay}
+        >
+          <View style={[styles.modalCard, { backgroundColor: palette.surface }]}>
+            <Text style={[styles.modalTitle, { color: palette.textPrimary }]}>
+              리뷰어 로그인
+            </Text>
+            <Text
+              style={[styles.modalHint, { color: palette.textTertiary }]}
+            >
+              App Review 계정으로 로그인하세요.
+            </Text>
+
+            <TextInput
+              value={reviewerEmail}
+              onChangeText={setReviewerEmail}
+              placeholder="이메일"
+              placeholderTextColor={palette.textQuaternary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="username"
+              editable={loading === null}
+              accessibilityLabel="리뷰어 이메일"
+              style={[
+                styles.input,
+                { color: palette.textPrimary, borderColor: palette.line },
+              ]}
+            />
+            <TextInput
+              value={reviewerPassword}
+              onChangeText={setReviewerPassword}
+              placeholder="비밀번호"
+              placeholderTextColor={palette.textQuaternary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              secureTextEntry
+              textContentType="password"
+              editable={loading === null}
+              onSubmitEditing={handleReviewerLogin}
+              returnKeyType="go"
+              accessibilityLabel="리뷰어 비밀번호"
+              style={[
+                styles.input,
+                { color: palette.textPrimary, borderColor: palette.line },
+              ]}
+            />
+
+            <Pressable
+              onPress={handleReviewerLogin}
+              disabled={
+                loading !== null ||
+                !reviewerEmail.trim() ||
+                !reviewerPassword
+              }
+              style={({ pressed }) => [
+                styles.modalSubmit,
+                { backgroundColor: palette.brand },
+                (loading !== null ||
+                  !reviewerEmail.trim() ||
+                  !reviewerPassword) &&
+                  styles.modalSubmitDisabled,
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="리뷰어 로그인 제출"
+            >
+              {loading === 'reviewer' ? (
+                <ActivityIndicator color="#ffffff" />
+              ) : (
+                <Text style={styles.modalSubmitText}>로그인</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={() => setReviewerOpen(false)}
+              disabled={loading !== null}
+              style={({ pressed }) => [
+                styles.modalCancel,
+                pressed && styles.pressed,
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="닫기"
+            >
+              <Text
+                style={[styles.modalCancelText, { color: palette.textTertiary }]}
+              >
+                닫기
+              </Text>
+            </Pressable>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -350,6 +525,56 @@ const styles = StyleSheet.create({
   },
   link: {
     textDecorationLine: 'underline',
+    fontWeight: '500',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    borderRadius: 16,
+    padding: 20,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  modalHint: {
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  input: {
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    fontSize: 15,
+  },
+  modalSubmit: {
+    height: 48,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  modalSubmitDisabled: {
+    opacity: 0.5,
+  },
+  modalSubmitText: {
+    color: '#ffffff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  modalCancel: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  modalCancelText: {
+    fontSize: 14,
     fontWeight: '500',
   },
 })

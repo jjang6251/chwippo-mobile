@@ -44,6 +44,22 @@ export async function appleNativeLogin(
   return res.data
 }
 
+/**
+ * App Review(App Store Guideline 2.1) 전용 리뷰어 로그인 — 카카오 계정을 만들 수 없는
+ * 심사관용 우회 경로. EXPO_PUBLIC_REVIEWER_MODE 빌드에서만 노출되는 숨김 UI 가 호출.
+ * 성공 시 카카오/Apple 과 동일한 LoginResponse (accessToken · user).
+ */
+export async function reviewerLogin(
+  email: string,
+  password: string,
+): Promise<LoginResponse> {
+  const res = await apiClient.post<LoginResponse>('/auth/reviewer-login', {
+    email,
+    password,
+  })
+  return res.data
+}
+
 export async function logout(): Promise<void> {
   await apiClient.post('/auth/logout').catch(() => {
     // 서버에서 실패해도 로컬 정리는 계속
