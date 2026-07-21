@@ -31,10 +31,10 @@
     "production": {
       "channel": "production",
       "autoIncrement": true,
-      // App Review(Guideline 2.1 · 카카오 우회) 제출 빌드에서만 아래 env 주석을 해제하면
-      // 로그인 화면 로고 7연속 탭 숨김 제스처가 활성화된다 (EXPO_PUBLIC_REVIEWER_MODE 는 빌드 타임 인라인).
-      // 평소 프로덕션 빌드엔 미설정 = 제스처 무반응(일반 사용자 노출 0). 백엔드 REVIEWER_EMAIL·REVIEWER_PASSWORD_HASH 도 함께 설정 필요.
-      // "env": { "EXPO_PUBLIC_REVIEWER_MODE": "1" },
+      // App Review(Guideline 2.1 · 카카오 우회) — 로그인 로고 7연속 탭 숨김 제스처 활성 (빌드 타임 인라인).
+      // 숨김 제스처라 상시 ON 이어도 일반 사용자 노출 0 (ADR-052). 실제 스위치는 백엔드
+      // REVIEWER_EMAIL·REVIEWER_PASSWORD_HASH — 심사 기간 외엔 env 제거로 404 (제스처 열려도 로그인 불가).
+      "env": { "EXPO_PUBLIC_REVIEWER_MODE": "1" },
       "ios": {
         "image": "latest",
         "resourceClass": "m-medium"
