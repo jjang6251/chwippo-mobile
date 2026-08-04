@@ -17,11 +17,21 @@ android/
 
 # === EAS 자격증명 (eas.json 자체는 추적 · credentials 만 X) ===
 credentials.json
+# 🔴 폴더도 막는다 — `credentials.json`(파일)만 있으면 eas.json 이 참조하는
+#    `./credentials/play-service-account.json` 이 그대로 커밋된다. 이 레포는 PUBLIC 이라
+#    Play Console 배포 권한 서비스 계정 키가 공개된다. 확장자가 .json 이라 *.p8/*.p12 에도 안 걸린다.
+credentials/
 *.p8
 *.p12
 *.mobileprovision
 *.keystore
 # 표준 debug keystore 는 예외 (~/.android/debug.keystore 는 원래 홈에 있고 여기서 대응 X)
+
+# Android FCM 설정 — Firebase 프로젝트·앱 식별자가 들어 있다. `android/` 는 prebuild 산출물이라
+# 통째로 무시되지만 **루트에 두는 게 Expo 표준 경로**(app.config.ts `android.googleServicesFile`)라
+# 그쪽이 열려 있었다. 공개 레포에 운영 식별자를 올리지 않는다는 기존 방침과 같은 선.
+google-services.json
+GoogleService-Info.plist
 
 # === Config Plugin cache ===
 .gradle/
