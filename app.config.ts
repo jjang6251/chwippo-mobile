@@ -30,7 +30,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ...config,
     name: '치뽀',
     slug: 'chwippo-mobile',
-    version: '0.1.0',
+    // 0.1.0 은 App Store 승인으로 트랙 마감 (Apple 90186) — 새 빌드는 버전 상향 필수
+    version: '0.1.1',
     orientation: 'portrait',
     scheme: 'chwippo',
     userInterfaceStyle: 'automatic',
