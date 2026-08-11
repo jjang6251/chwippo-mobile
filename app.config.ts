@@ -75,6 +75,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
 
       infoPlist: {
+        // App Store 제품 페이지 "언어" 표기 — 미선언 시 Expo 기본값(영어)이 바이너리에
+        // 박혀 한국 스토어에 "언어: 영어"로 노출된다 (0.1.1까지의 상태). 빌드에 반영되는
+        // 값이라 다음 빌드(0.1.2+)부터 적용.
+        CFBundleDevelopmentRegion: 'ko',
+        CFBundleLocalizations: ['ko'],
+
         // Kakao Login
         LSApplicationQueriesSchemes: ['kakaokompassauth', 'kakaolink', 'kakaoplus'],
         CFBundleURLTypes: [
