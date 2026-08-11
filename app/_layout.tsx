@@ -8,7 +8,6 @@ import * as SecureStore from 'expo-secure-store'
 import * as SplashScreen from 'expo-splash-screen'
 import Constants from 'expo-constants'
 import { initializeKakaoSDK } from '@react-native-kakao/core'
-import { performNativeRefresh } from '@/api/client'
 import { queryClient } from '@/lib/queryClient'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
@@ -30,15 +29,22 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 /**
  * Root Layout — auth guard + provider 셋업.
  *
- * 플로우 (W3):
+ * 플로우 (refresh 회전 단일 주체화 — 회전·세션 판정은 웹뷰가 전담):
  *  1. Kakao SDK 초기화 (모듈 로드 시 1회)
  *  2. SecureStore JWT 조회
- *  3. JWT 있음 → GET /users/me 로 세션 검증
- *     - 200 → (tabs) 자동 진입
- *     - 401 → interceptor 가 clearAll → login 노출
+ *  3. JWT 있음 → **낙관 진입** ((tabs)). 네이티브는 세션 검증(네트워크 호출)을 하지 않는다
+ *     - 실판정은 웹뷰 AuthGuard 의 POST /auth/refresh 가 담당
+ *     - 실패(401) 시 웹이 postMessage({type:'logout'}) → AppWebView 가 clearAll → login
  *  4. JWT 없음 → login 화면
  *
- * bootstrapping=true 동안 login 화면 노출 (스플래시 대체 · 시각적 잔상 최소)
+ * 🔴 계약 — 낙관 진입 시 SecureStore 의 access 가 이미 만료였을 수 있다:
+ *  - 네이티브 API 3종(푸시 기기등록 · alarm-prompt · 종 배지)은 401 로 **조용히 실패**한다.
+ *    네이티브는 회전도 로그아웃도 하지 않는다 (src/api/client.ts 401 정책)
+ *  - 웹뷰가 회전에 성공하면 {type:'token'} 브리지로 새 access 를 밀어 넣으므로
+ *    다음 주기(배지 60s 폴링 등)에 자연 회복한다
+ *  - 네이티브 회전을 되살리면 회전 주체가 다시 둘이 되어 구세대 RT 재사용 오탐이 재발한다
+ *
+ * bootstrapping=true 동안 네이티브 스플래시 유지 (Login 화면 flash 방지)
  */
 
 // Kakao SDK 초기화 · runtime 순서:
@@ -74,7 +80,6 @@ function NotificationRuntime() {
 
 export default function RootLayout() {
   const restoreToken = useAuthStore((s) => s.restoreToken)
-  const clearAll = useAuthStore((s) => s.clearAll)
   const setBootstrapping = useAuthStore((s) => s.setBootstrapping)
   const token = useAuthStore((s) => s.token)
   const bootstrapping = useAuthStore((s) => s.bootstrapping)
@@ -83,29 +88,17 @@ export default function RootLayout() {
   const segments = useSegments()
 
 
-  // 앱 시작 · JWT 복원 + me 검증
+  // 앱 시작 · JWT 존재 여부만으로 낙관 진입 (네트워크 검증 없음 — 위 계약 참조)
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
         const savedToken = await SecureStore.getItemAsync('jwt')
-        if (!savedToken) {
-          if (!cancelled) setBootstrapping(false)
-          return
-        }
-        restoreToken(savedToken)
-        // 백엔드 GET /users/me 없음 · POST /auth/refresh 로 새 accessToken + user 획득.
-        // 성공 시 performNativeRefresh 내부에서 epoch 확인 후 setSession 호출.
-        await performNativeRefresh()
+        if (!cancelled && savedToken) restoreToken(savedToken)
       } catch (err) {
-        // ⚠️ fallthrough 금지 — response 있는 401 일 때만 clearAll.
-        // 네트워크(response 부재)·409·429·5xx·epoch 변경 → 기존 SecureStore 토큰 유지하고
-        // 로그인 상태로 진행(콜드스타트 순단 보호). 다음 요청·폴링이 자동 복구.
-        const status = (err as { response?: { status?: number } })?.response
-          ?.status
-        if (!cancelled && status === 401) {
-          await clearAll()
-        }
+        // Keychain 접근 실패 — 토큰 없는 것으로 간주하고 login 화면으로.
+        // (여기서 clearAll 은 하지 않는다. 읽기 실패일 뿐 세션 만료 판정이 아님)
+        console.warn('[auth] SecureStore read failed', err)
       } finally {
         if (!cancelled) setBootstrapping(false)
         // 스플래시는 라우터가 실제 목적지로 이동 완료된 후에 hide (아래 별도 effect)
