@@ -65,7 +65,8 @@
         "exclude": [
           "expo-share-extension",
           "@react-native-kakao/core",
-          "@react-native-kakao/user"
+          "@react-native-kakao/user",
+          "@react-native-cookies/cookies"
         ],
         "listUnknownPackages": false
       }
