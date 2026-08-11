@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAuthStore } from '@/stores/authStore'
 import {
+  hasRegisteredDevice,
   registerIfPermitted,
   syncPermissionState,
   unregisterCurrentDevice,
@@ -17,17 +18,22 @@ import {
  * ⚠️ 내부 헬퍼 전부 best-effort · 실패해도 로그인/앱 흐름을 절대 깨지 않음.
  */
 export function usePushRegistration(): void {
-  // boolean 로그인 여부로 keying — 시간당 accessToken rotation(문자열 변경)마다
-  // 재등록 chatter 가 발생하지 않도록 로그인↔로그아웃 전이에만 반응.
-  const isLoggedIn = useAuthStore((s) => !!s.token)
+  // 🔴 token 문자열로 keying — 콜드스타트는 SecureStore 토큰으로 낙관 진입하므로
+  // access 가 이미 만료였을 수 있고(네이티브는 더 이상 회전하지 않는다) 그 상태의 등록은
+  // 401 로 조용히 실패한다. 웹뷰가 회전에 성공해 새 token 을 밀어 넣으면(setToken)
+  // 이 effect 가 다시 돌아 회복한다 — 배지처럼 폴링으로 복구되는 경로가 없기 때문.
+  // 등록이 이미 성공했으면 회전마다 재등록하지 않는다 (chatter 방지 · 권한 미승낙이라
+  // 등록할 게 없는 계정만 회전당 권한 상태 동기화 1회를 반복한다).
+  const token = useAuthStore((s) => s.token)
 
   useEffect(() => {
-    if (!isLoggedIn) {
+    if (!token) {
       void unregisterCurrentDevice()
       return
     }
+    if (hasRegisteredDevice()) return
     // 로그인 · 권한 상태 서버 동기화 + 있으면 자동 등록
     void syncPermissionState()
     void registerIfPermitted()
-  }, [isLoggedIn])
+  }, [token])
 }

@@ -33,6 +33,7 @@ import {
   recordValueMomentPrompt,
   shouldShowValueMomentSoftAsk,
 } from '@/utils/softAsk'
+import { clearNativeRefreshTokenCookie } from '@/utils/cookies'
 import { syncAlarmPrompt } from '@/api/notifications'
 import { PermissionSoftAskModal } from '@/components/PermissionSoftAskModal'
 
@@ -50,6 +51,9 @@ import { PermissionSoftAskModal } from '@/components/PermissionSoftAskModal'
  *   - Custom User-Agent 에 `chwippo-mobile-webview` 포함 → 웹의 `useNativeMode()` 감지 → MobileNav/Header hide
  *   - iOS WKWebView: `sharedCookiesEnabled` 로 refresh_token httpOnly cookie 자동 공유 → 웹이 /auth/refresh 로 세션 획득
  *   - accessToken seed 주입 제거됨 — 쿠키 공유가 유일 경로 (웹 소비처 0 · sessionStorage 평문 토큰 표면 제거)
+ *   - 🔴 refresh 회전 주체는 웹뷰 하나 — 웹이 회전에 성공할 때마다 `{type:'token'}` 으로 새
+ *     access 를 네이티브에 밀어 준다(네이티브는 회전 안 함). 첫 로드 완료 후 iOS 네이티브
+ *     쿠키 저장소의 refresh_token 박제를 지운다 (onLoadEnd · utils/cookies.ts 참조)
  *
  * ## 외부 링크 처리 (심사 필수)
  *   - originWhitelist 밖 URL 클릭 시 `expo-web-browser.openBrowserAsync` (SFSafariViewController)
@@ -224,6 +228,17 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
   const handleOfflineRetry = useCallback(() => {
     setLoadError(false)
     webViewRef.current?.reload()
+  }, [])
+
+  // iOS 네이티브 쿠키 저장소의 refresh_token 박제 제거 — 첫 로드가 끝났으면 웹뷰로의
+  // 쿠키 시드가 이미 끝난 시점이라 지워도 안전하고, 이후 재마운트·reload 가 구세대
+  // RT 를 웹뷰에 되씌우는 경로가 사라진다. Android 는 helper 내부에서 no-op.
+  // (로그인 직후 세션도 같은 순서 — 로그인 → (tabs) 마운트 → 웹뷰 로드 → 여기)
+  const rtCookieClearedRef = useRef(false)
+  const onLoadEnd = useCallback(() => {
+    if (rtCookieClearedRef.current) return
+    rtCookieClearedRef.current = true
+    void clearNativeRefreshTokenCookie()
   }, [])
 
   // ① 앱 잠금 상태 회신 — 웹으로 CustomEvent(chwippo:app-lock-state) 주입.
@@ -417,6 +432,7 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
     try {
       const msg = JSON.parse(e.nativeEvent.data) as
         | { type: 'theme'; theme: 'dark' | 'light' }
+        | { type: 'token'; accessToken: string }
         | { type: 'logout' }
         | { type: 'account-deleted' }
         | { type: 'request-notification-permission' }
@@ -431,6 +447,16 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
         const t = (msg as { theme: 'dark' | 'light' }).theme
         if (t === 'dark' || t === 'light') {
           useThemeStore.getState().setTheme(t)
+        }
+        return
+      }
+      // 웹뷰 refresh 회전 성공 → 새 access 를 네이티브 SecureStore·메모리에 반영.
+      // 네이티브 API(푸시 기기등록 · alarm-prompt · 종 배지)는 이 경로로만 최신 토큰을
+      // 받는다 (네이티브 회전 제거 · client.ts 401 정책). 세션이 없으면 store 가 무시.
+      if (msg.type === 'token') {
+        const t = (msg as { accessToken?: unknown }).accessToken
+        if (typeof t === 'string' && t) {
+          useAuthStore.getState().setToken(t)
         }
         return
       }
@@ -544,6 +570,8 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
         onNavigationStateChange={onNavigationStateChange}
         // ② 네트워크 로드 에러 → 오프라인 화면 (Safari 흰 에러 화면 방지)
         onError={onError}
+        // 첫 로드 완료 → iOS 네이티브 refresh_token 박제 제거 (위 주석 참조)
+        onLoadEnd={onLoadEnd}
         startInLoadingState={true}
         renderLoading={() => (
           <View

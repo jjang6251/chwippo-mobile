@@ -14,6 +14,16 @@ import { syncAlarmPrompt } from '@/api/notifications'
 /** 마지막으로 서버에 등록한 Expo push token · 로그아웃 시 해제에 사용 */
 let lastRegisteredToken: string | null = null
 
+/**
+ * 이번 로그인 세션에서 서버 기기 등록이 성공했는지.
+ * 콜드스타트 낙관 진입 시 access 가 만료였으면 등록이 401 로 조용히 실패하는데,
+ * 웹뷰 회전이 새 token 을 밀어 넣었을 때 재시도할지 판정하는 데 쓴다.
+ * (usePushRegistration 참조)
+ */
+export function hasRegisteredDevice(): boolean {
+  return lastRegisteredToken !== null
+}
+
 function getProjectId(): string | undefined {
   const extra = Constants.expoConfig?.extra as
     | { eas?: { projectId?: string } }

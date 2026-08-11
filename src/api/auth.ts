@@ -66,8 +66,9 @@ export async function logout(): Promise<void> {
   })
 }
 
-// 세션 갱신은 client.ts performNativeRefresh() 로 일원화 (인터셉터 없는 plain axios).
-// apiClient 경유 refresh 는 401 재귀·이중 경로 위험이 있어 여기서 제공하지 않는다.
+// 🔴 세션 갱신(/auth/refresh) 함수는 여기에도 client.ts 에도 없다 — refresh 회전 주체는
+// 웹뷰 하나다. 네이티브가 다시 회전하면 시간차로 구세대 RT 가 서버에 도착해 재사용 탈취로
+// 판정되고 토큰 체인이 revoke 되어 오탐 로그아웃이 재발한다 (client.ts 401 정책 참조).
 
 export async function deleteMyAccount(): Promise<void> {
   await apiClient.delete('/users/me')
