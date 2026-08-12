@@ -33,13 +33,22 @@ export function PermissionSoftAskModal({ visible, onAllow, onDismiss }: Props) {
             { backgroundColor: palette.surface, borderColor: palette.line },
           ]}
         >
-          <Text style={styles.emoji}>🔔</Text>
+          <View style={[styles.iconCircle, { backgroundColor: `${palette.brand}1F` }]}>
+            <Text style={styles.emoji}>🔔</Text>
+          </View>
           <Text style={[styles.title, { color: palette.textPrimary }]}>
-            이 마감, 놓치지 않게 알려드릴까요?
+            마감·면접, 놓치지 않게 알려드릴까요?
           </Text>
-          <Text style={[styles.body, { color: palette.textTertiary }]}>
-            마감·면접이 다가오면 앱을 열지 않아도 아침에 챙겨드려요. 밤 10시~아침
-            8시엔 보내지 않아요.
+          <Text
+            style={[styles.body, { color: palette.textTertiary }]}
+            // 한글 어절 단위 줄바꿈 — 단어 중간 잘림 방지 (좁은 화면 오버플로 대비)
+            lineBreakStrategyIOS="hangul-word"
+            textBreakStrategy="highQuality"
+          >
+            {'마감·면접이 다가오면 앱을 열지 않아도\n아침에 미리 챙겨드려요.'}
+          </Text>
+          <Text style={[styles.caption, { color: palette.textQuaternary }]}>
+            밤 10시~아침 8시엔 보내지 않아요.
           </Text>
 
           <Pressable
@@ -85,9 +94,16 @@ const styles = StyleSheet.create({
     padding: 24,
     alignItems: 'center',
   },
+  iconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
   emoji: {
-    fontSize: 34,
-    marginBottom: 12,
+    fontSize: 28,
   },
   title: {
     fontSize: 17,
@@ -98,6 +114,12 @@ const styles = StyleSheet.create({
   body: {
     fontSize: 13,
     lineHeight: 20,
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  caption: {
+    fontSize: 12,
+    lineHeight: 18,
     textAlign: 'center',
     marginBottom: 20,
   },
@@ -113,7 +135,8 @@ const styles = StyleSheet.create({
   },
   laterBtn: {
     width: '100%',
-    paddingVertical: 12,
+    // 터치 타겟 44px 확보 (14pv + 14 텍스트 라인 ≈ 48)
+    paddingVertical: 14,
     alignItems: 'center',
     marginTop: 4,
   },
