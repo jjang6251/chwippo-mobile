@@ -120,6 +120,8 @@ export async function registerIfPermitted(): Promise<void> {
 
 /**
  * 웹 설정 "알림 권한 설정" CTA — 상태별 분기.
+ * (soft-ask '알림 받기' 의 막다른 길 폴백도 재사용 — AppWebView handleSoftAskAllow.
+ *  그 경로는 요청 직후라 status='denied' 확정 → 아래 설정 이동 분기로만 간다)
  *  - undetermined: iOS 설정에 알림 항목이 아직 없어 설정 이동은 막다른 길 →
  *    OS 프롬프트 직접 요청 (soft-ask 못 본 계정의 복구 경로 겸용)
  *  - granted/denied: 앱 알림 설정 화면으로 이동 (iOS 재프롬프트 불가 대응)
@@ -139,16 +141,37 @@ export async function openNotificationSettingsOrRequest(): Promise<void> {
 
 /**
  * soft-ask "알림 받기" → OS 권한 요청 → 상태 동기화 + 승낙 시 기기 등록.
- * @returns granted 여부
+ *
+ * @returns `granted` — 승낙 여부.
+ *          `osDialogBlocked` — **OS 팝업이 아예 뜨지 못했는지**(= 사용자는 아무것도
+ *          누른 적 없는데 거부로 끝남). 호출 측이 "눌러도 아무 일 없는 막다른 길"을
+ *          앱 알림 설정 딥링크로 구제할 근거. 확신될 때만 true.
+ *
+ * ⚠️ 요청 **후** `canAskAgain === false` 하나로는 판정할 수 없다 — 그 값은
+ *   ① 팝업이 안 뜬 기기 와 ② 방금 마지막 '거부'를 누른 사용자 를 구분하지 못한다.
+ *   ②까지 딥링크하면 거절 직후 사용자를 시스템 설정으로 내쫓는 꼴이라, 요청 **전**
+ *   canAskAgain 까지 함께 봐서 "전에도 막혀 있었고 요청 후에도 안 풀린" 경우로 좁힌다.
+ *   (Android 는 캐시로 요청을 단축하지 않고 항상 실제 OS 요청을 태우므로 —
+ *    askForPermissions → delegateRequestToActivity, PermissionsService.kt — 팝업이
+ *    뜰 수 있는 기기면 granted 또는 canAskAgain=true 로 반드시 드러난다.
+ *    iOS 는 soft-ask 가 undetermined 에서만 뜨고 그땐 요청 전 canAskAgain=true 라
+ *    자동으로 false — 정상 거절이 딥링크로 이어지지 않는다.)
+ *   조회·요청 실패 시에도 false — 불확실한 상태로 화면 이탈시키지 않는다.
  */
-export async function requestPermissionAndRegister(): Promise<boolean> {
+export async function requestPermissionAndRegister(): Promise<{
+  granted: boolean
+  osDialogBlocked: boolean
+}> {
   try {
-    const { status } = await Notifications.requestPermissionsAsync()
+    const couldPrompt = await Notifications.getPermissionsAsync()
+      .then((p) => p.canAskAgain)
+      .catch(() => true) // 조회 실패 → '뜰 수 있었다' 로 간주(폴백 억제)
+    const { status, canAskAgain } = await Notifications.requestPermissionsAsync()
     const granted = status === 'granted'
     await syncAlarmPrompt(granted).catch(() => {})
     if (granted) await registerCurrentDevice()
-    return granted
+    return { granted, osDialogBlocked: !granted && !canAskAgain && !couldPrompt }
   } catch {
-    return false
+    return { granted: false, osDialogBlocked: false }
   }
 }
