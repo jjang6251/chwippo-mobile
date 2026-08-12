@@ -44,9 +44,30 @@ async function getExpoToken(): Promise<string | null> {
   }
 }
 
+/**
+ * 🔴 Android 알림 채널 보장 — 채널이 없으면 Android 8+ 가 도착한 알림을 **조용히 버린다.**
+ * 2026-08-12 실기 확정: FCM 영수증 ok 인데 표시 0건, dumpsys 로 채널 0개 실측.
+ * Expo 발송(channelId 미지정)은 'default' 채널을 찾으므로 그 id 로 생성해야 한다.
+ * 멱등(이미 있으면 갱신) · best-effort. iOS 는 채널 개념 없음 — no-op.
+ */
+async function ensureAndroidChannel(): Promise<void> {
+  if (Platform.OS !== 'android') return
+  try {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: '일정 알림',
+      importance: Notifications.AndroidImportance.HIGH,
+      sound: 'default',
+      vibrationPattern: [0, 250, 250, 250],
+    })
+  } catch {
+    // 채널 생성 실패 시에도 앱 흐름 유지 (다음 등록 시 재시도)
+  }
+}
+
 /** 현재 기기 Expo push token 을 서버에 등록 (권한 있을 때만 호출). best-effort. */
 export async function registerCurrentDevice(): Promise<void> {
   try {
+    await ensureAndroidChannel()
     const expoToken = await getExpoToken()
     if (!expoToken) return
     await registerDevice({
