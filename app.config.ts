@@ -212,6 +212,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       'expo-local-authentication',
 
       /*
+        Android WebView 쿠키 디스크 반영 (MainActivity.onPause 주입)
+        RT 회전 직후 앱 종료 시 새 refresh token 유실 → 콜드스타트에서 묵은 RT 제출 →
+        서버 재사용 감지 → 체인 revoke → 오탐 로그아웃. 그 창을 봉인한다.
+      */
+      './plugins/withAndroidCookieFlush',
+
+      /*
         🔴 증빙 파일 촬영·첨부용 — 동영상은 안 쓰므로 마이크 권한을 **제거**한다.
         플러그인 기본값이 NSMicrophoneUsageDescription 에 영어 플레이스홀더를 주입해
         0.1.1 심사 거절 (2026-08-12, "placeholder text" 자동 분석). 카메라·앨범 문구는
