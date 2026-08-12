@@ -200,14 +200,21 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
   const [softAskVisible, setSoftAskVisible] = useState(false)
 
   /**
-   * ⑦ 앱 시작 트리거 — 판정 기준을 **기기 진실**(OS 권한 undetermined)로 둔다.
+   * ⑦ 앱 시작 트리거 — 판정 기준을 **기기 진실**(OS 권한)로 둔다.
    * 웹 로그인 시점 모달은 서버 alarmPromptedAt==null 게이트라 기기 변경·재설치
    * 사용자에겐 영영 안 뜨고, 권한이 없으면 기기 등록이 스킵돼 Android 푸시가
    * 통째로 죽었다 (2026-08-13 실기 확정).
    *
    * 계약 (판정은 utils/softAsk 가 강제):
+   *   [iOS] OS 팝업 평생 1회 → 소진 보호 우선
    *   - undetermined + 쿨다운 통과 : 앱 시작 · 가치 순간 중 먼저 온 쪽이 1회만
    *   - granted / denied(설정 끔 · OS 거부) : 조건 원천 미충족 → 절대 안 뜸
+   *   [Android] expo 의 status 는 자체 캐시 기반이라 신뢰 불가 (softAsk.ts 상단 참조)
+   *   - granted                    : 안 뜸
+   *   - 그 외 전부(denied·undetermined) : 쿨다운 · 세션 가드 통과 시 노출
+   *     → '알림 받기' 는 OS 팝업, 팝업이 다시 안 뜨는 기기면 설정 딥링크
+   *       (handleSoftAskAllow)
+   *   [공통]
    *   - '나중에'                   : 2주 쿨다운 (앵커는 응답이 아니라 **노출** 시점)
    *   - 세션 내                    : 경로 · 탭 인스턴스 불문 최대 1회
    *   - 데모                       : 미노출 (아래 조기 반환 + onMessage 가드)
@@ -518,7 +525,8 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
         void openNotificationSettingsOrRequest()
         return
       }
-      // ⑦ 마감일 저장(가치 순간) → 권한 undetermined + 쿨다운(2주) 통과 시 soft-ask 노출.
+      // ⑦ 마감일 저장(가치 순간) → 권한 게이트(iOS undetermined · Android !granted) +
+      // 쿨다운(2주) 통과 시 soft-ask 노출.
       // OS 프롬프트는 승낙 시에만 (소진 방지). 기존 앱시작 동기화·설정 CTA 경로엔 영향 없음.
       // 앱 시작 트리거와 완전히 같은 패턴 — 세션 가드·쿨다운이 두 경로를 공통 차단한다.
       if (msg.type === 'deadline-saved') {
@@ -555,11 +563,23 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
     if (demo && isDemoAuthExit(nav.url)) exitDemo()
   }, [demo, exitDemo])
 
-  // ⑦ soft-ask '알림 받기' — 로컬 앵커 갱신 + OS 권한 요청/등록 (승낙 시 서버도 동기화)
+  /**
+   * ⑦ soft-ask '알림 받기' — 로컬 앵커 갱신 + OS 권한 요청/등록 (승낙 시 서버도 동기화).
+   *
+   * Android 는 게이트가 `!granted` 라 **영구 거부 기기에도 모달이 뜬다.** 이때 OS 팝업은
+   * 아예 안 떠서 요청만 하면 "눌러도 아무 일 없는" 막다른 길이 되므로, 그 경우
+   * (osDialogBlocked — 판정 근거는 push.ts) 앱 알림 설정으로 보내 구제한다.
+   * 사용자가 OS 팝업에서 직접 '거부'를 누른 케이스는 여기 해당 없음(설정으로 내쫓지 않음).
+   *
+   * 이 시점 status 는 확정적으로 'denied' 라 openNotificationSettingsOrRequest 는
+   * 설정 딥링크로만 분기한다(재요청 경로 아님) — 기존 헬퍼 그대로 재사용.
+   */
   const handleSoftAskAllow = useCallback(() => {
     setSoftAskVisible(false)
     void recordValueMomentPrompt()
-    void requestPermissionAndRegister()
+    void requestPermissionAndRegister().then(({ osDialogBlocked }) => {
+      if (osDialogBlocked) void openNotificationSettingsOrRequest()
+    })
   }, [])
 
   // ⑦ soft-ask '나중에' — 로컬 쿨다운 앵커 + 서버 promptedAt 기록 (기존 계약 재사용)
