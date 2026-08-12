@@ -35,6 +35,10 @@
       // 숨김 제스처라 상시 ON 이어도 일반 사용자 노출 0 (ADR-052). 실제 스위치는 백엔드
       // REVIEWER_EMAIL·REVIEWER_PASSWORD_HASH — 심사 기간 외엔 env 제거로 404 (제스처 열려도 로그인 불가).
       "env": { "EXPO_PUBLIC_REVIEWER_MODE": "1" },
+      // 🔴 EAS 클라우드 env(GOOGLE_SERVICES_JSON file var 등)는 이 연결이 있어야 빌드에 주입된다.
+      // 없으면 googleServicesFile 이 조용히 비어 Firebase 설정 없는 APK 가 나온다 (2026-08-12 vc3·vc4 실사고
+      // — FCM 영수증 ok 인데 기기 미도달, APK grep 으로 project_number 0건 실측)
+      "environment": "production",
       "ios": {
         "image": "latest",
         "resourceClass": "m-medium"
@@ -42,7 +46,8 @@
       "android": {
         "buildType": "app-bundle",
         "image": "latest",
-        "resourceClass": "large"
+        // "large" 는 유료 플랜 전용 (2026-08-12 빌드 거부 실측) — 무료 티어는 medium
+        "resourceClass": "medium"
       }
     }
   },
