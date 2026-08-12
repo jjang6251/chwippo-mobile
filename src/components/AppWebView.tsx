@@ -30,6 +30,7 @@ import {
   unregisterCurrentDevice,
 } from '@/utils/push'
 import {
+  markSoftAskShown,
   recordValueMomentPrompt,
   shouldShowValueMomentSoftAsk,
 } from '@/utils/softAsk'
@@ -169,7 +170,7 @@ interface AppWebViewProps {
   /**
    * 데모(비로그인) 모드 — `/demo/calendar` 등 공개 라우트 전용.
    *   - `/demo` 밖 로그인·랜딩·OAuth 이탈 URL 을 가로채 onExitDemo 로 네이티브 복귀
-   *   - deadline-saved soft-ask(푸시 권한) 억제 (비로그인 권한 요청 부적절)
+   *   - soft-ask(푸시 권한) 억제 — 앱 시작 · deadline-saved 양쪽 (비로그인 권한 요청 부적절)
    *   - NativeHeader(탭 헤더)가 없으므로 상단 안전영역을 이 컴포넌트가 직접 처리
    */
   demo?: boolean
@@ -195,8 +196,34 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
     exitedRef.current = true
     onExitDemo?.()
   }, [onExitDemo])
-  // ⑦ 가치 순간 soft-ask 모달 (deadline-saved 수신 + 쿨다운 통과 시)
+  // ⑦ 알림 soft-ask 모달 (앱 시작 · 가치 순간 공용 · 쿨다운 통과 시)
   const [softAskVisible, setSoftAskVisible] = useState(false)
+
+  /**
+   * ⑦ 앱 시작 트리거 — 판정 기준을 **기기 진실**(OS 권한 undetermined)로 둔다.
+   * 웹 로그인 시점 모달은 서버 alarmPromptedAt==null 게이트라 기기 변경·재설치
+   * 사용자에겐 영영 안 뜨고, 권한이 없으면 기기 등록이 스킵돼 Android 푸시가
+   * 통째로 죽었다 (2026-08-13 실기 확정).
+   *
+   * 계약 (판정은 utils/softAsk 가 강제):
+   *   - undetermined + 쿨다운 통과 : 앱 시작 · 가치 순간 중 먼저 온 쪽이 1회만
+   *   - granted / denied(설정 끔 · OS 거부) : 조건 원천 미충족 → 절대 안 뜸
+   *   - '나중에'                   : 2주 쿨다운 (앵커는 응답이 아니라 **노출** 시점)
+   *   - 세션 내                    : 경로 · 탭 인스턴스 불문 최대 1회
+   *   - 데모                       : 미노출 (아래 조기 반환 + onMessage 가드)
+   *   - AsyncStorage 실패          : shouldShow=false (fail-safe)
+   *
+   * 노출 직전 markSoftAskShown() 으로 세션 플래그 + 쿨다운 앵커를 동시에 찍어,
+   * 모달을 무시한 채 탭을 옮겨도 다른 AppWebView 인스턴스가 다시 띄우지 못한다.
+   */
+  useEffect(() => {
+    if (demo) return
+    void shouldShowValueMomentSoftAsk().then((show) => {
+      if (!show) return
+      markSoftAskShown()
+      setSoftAskVisible(true)
+    })
+  }, [demo])
 
   // ② 오프라인 감지 — 네트워크 미연결 또는 WebView 로드 에러(네트워크 계열)
   const netState = Network.useNetworkState()
@@ -493,12 +520,15 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
       }
       // ⑦ 마감일 저장(가치 순간) → 권한 undetermined + 쿨다운(2주) 통과 시 soft-ask 노출.
       // OS 프롬프트는 승낙 시에만 (소진 방지). 기존 앱시작 동기화·설정 CTA 경로엔 영향 없음.
+      // 앱 시작 트리거와 완전히 같은 패턴 — 세션 가드·쿨다운이 두 경로를 공통 차단한다.
       if (msg.type === 'deadline-saved') {
         // 데모(비로그인)에선 soft-ask 억제 — 권한 요청은 로그인 사용자 전용.
         // (프론트도 데모 모드에서 미발신 · 여기선 이중 방어)
         if (demo) return
         void shouldShowValueMomentSoftAsk().then((show) => {
-          if (show) setSoftAskVisible(true)
+          if (!show) return
+          markSoftAskShown()
+          setSoftAskVisible(true)
         })
         return
       }
