@@ -99,3 +99,5 @@ tmp/
 
 expo-env.d.ts
 # @end expo-cli
+# Firebase 서비스 계정 키 (FCM V1 발송용 개인키 — 절대 커밋 금지, EAS credentials 업로드 후 로컬 삭제)
+*firebase-adminsdk*.json

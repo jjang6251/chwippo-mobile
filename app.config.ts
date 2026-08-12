@@ -116,6 +116,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       package: 'com.chwippo.app',
 
+      /*
+        FCM (Android 푸시) — Expo Push Service 가 FCM V1 로 발송하려면 이 파일 + EAS 에
+        업로드된 Firebase 서비스 계정 키가 필요하다. 공개 레포라 git 커밋은 차단하되
+        (.gitignore) **.easignore 로 EAS 업로드 아카이브에는 포함**시킨다 — env file var
+        주입은 environment 연결로도 동작하지 않아 vc3~vc5 가 FCM 없는 바이너리로 나갔다
+        (2026-08-12 실사고 · aab 압축 해제 grep 실측). env fallback 은 남겨둔다.
+      */
+      googleServicesFile: process.env.GOOGLE_SERVICES_JSON ?? './google-services.json',
+
       // Adaptive icon · brand 배경 + 워드마크 foreground
       adaptiveIcon: {
         foregroundImage: './assets/adaptive-icon.png',
@@ -130,6 +139,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       // - READ_MEDIA_IMAGES · READ_MEDIA_VIDEO (Photo Picker 만 사용)
       // - SYSTEM_ALERT_WINDOW · MANAGE_EXTERNAL_STORAGE
       blockedPermissions: [
+        // Play Console "광고 ID 사용 안 함" 선언과 매니페스트 정합 보장 — 전이 의존성이
+        // 넣어도 제거 (어긋나면 aab 업로드 거부)
+        'com.google.android.gms.permission.AD_ID',
         'android.permission.QUERY_ALL_PACKAGES',
         'android.permission.REQUEST_INSTALL_PACKAGES',
         'android.permission.ACCESS_BACKGROUND_LOCATION',
