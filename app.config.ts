@@ -75,6 +75,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
 
       infoPlist: {
+        // App Store 제품 페이지 "언어" 표기 — 미선언 시 Expo 기본값(영어)이 바이너리에
+        // 박혀 한국 스토어에 "언어: 영어"로 노출된다 (0.1.1 빌드 14까지의 상태)
+        CFBundleDevelopmentRegion: 'ko',
+        CFBundleLocalizations: ['ko'],
+
         // Kakao Login
         LSApplicationQueriesSchemes: ['kakaokompassauth', 'kakaolink', 'kakaoplus'],
         CFBundleURLTypes: [
@@ -205,6 +210,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
 
       // Local biometric (Face ID / Touch ID)
       'expo-local-authentication',
+
+      /*
+        🔴 증빙 파일 촬영·첨부용 — 동영상은 안 쓰므로 마이크 권한을 **제거**한다.
+        플러그인 기본값이 NSMicrophoneUsageDescription 에 영어 플레이스홀더를 주입해
+        0.1.1 심사 거절 (2026-08-12, "placeholder text" 자동 분석). 카메라·앨범 문구는
+        위 infoPlist 의 한국어 문구가 최종 승자지만 명시적으로 통일해 둔다.
+      */
+      [
+        'expo-image-picker',
+        {
+          cameraPermission: '자격증 · 상장 등 증빙 파일을 촬영하기 위해 카메라를 사용합니다.',
+          photosPermission: '자격증 · 상장 · 자소서 등 파일 첨부를 위해 사진 앨범에 접근합니다.',
+          microphonePermission: false,
+        },
+      ],
 
       // Widget + Share Extension targets (별도 targets/ 폴더에 config 파일 생성)
       // W4 에 활성화 · 지금은 주석 처리
