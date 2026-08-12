@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
+  AppState,
   Platform,
   StyleSheet,
   View,
@@ -235,7 +236,36 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
   // ② 오프라인 감지 — 네트워크 미연결 또는 WebView 로드 에러(네트워크 계열)
   const netState = Network.useNetworkState()
   const [loadError, setLoadError] = useState(false)
-  const offline = netState.isConnected === false || loadError
+
+  /**
+   * ② 실측 override — **실측이 훅을 이긴다.**
+   *
+   * `Network.useNetworkState()` 는 마운트 때 건 구독 하나로만 값을 갱신한다
+   * (expo-network/Network.js). 화면 잠금 20분+ 후 재개하면 이 구독이 죽은 채
+   * `isConnected=false` 에 고착돼, 상태바 와이파이 정상 · 네이티브 배지 폴링 성공
+   * (= 네트워크 실제 정상)인데도 오프라인 화면이 영구 표시되고 "다시 시도" 버튼도
+   * 훅 값을 못 바꿔 무력했다 — 강제 종료 외 탈출 불가 (2026-08-13 실기 재현).
+   * 그래서 `getNetworkStateAsync()` **실측** 결과를 훅 위에 얹는다.
+   *
+   *   null  = 미실측 · 또는 실측이 훅을 반박하지 않음 → 훅 값으로 판정 (평상시)
+   *   true  = 실측 '연결됨' → 훅이 뭐라 하든 온라인 (고착 탈출)
+   *
+   * 실측이 '미연결' 이어도 false 로 박제하지 않고 null 로 **놓아준다**: 재개 직후
+   * 무선 모뎀이 깨어나는 중이면 실측도 잠깐 미연결로 나올 수 있어, 그걸 박으면
+   * 이번엔 반대 방향으로 오프라인 화면을 고착시킨다. 진짜 오프라인은 훅 값과
+   * WebView 로드 에러(loadError)가 이미 잡으므로 override 로 단정할 이유가 없다.
+   *
+   * 훅이 값을 갱신하면(= 구독이 살아있다는 뜻) override 를 반납해 훅 우위를 복원한다.
+   */
+  const [probedOnline, setProbedOnline] = useState<boolean | null>(null)
+  const online = probedOnline ?? netState.isConnected !== false
+  const offline = !online || loadError
+
+  // 훅이 값을 갱신했다 = 구독이 살아있다 → override 반납.
+  // 덕분에 훅이 정상 발화하는 평상시 시나리오(기내모드 토글 등)는 동작 무변경.
+  useEffect(() => {
+    setProbedOnline(null)
+  }, [netState.isConnected])
 
   const fullUrl = useMemo(() => buildFullUrl(path), [path])
 
@@ -251,6 +281,57 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
     }
   }, [netState.isConnected])
 
+  // 오프라인 화면이 떠 있었는지 — 아래 AppState 리스너가 재구독 없이 읽는다
+  const offlineRef = useRef(false)
+  useEffect(() => {
+    offlineRef.current = offline
+  }, [offline])
+
+  /**
+   * ② 실측이 '연결됨' 일 때의 공통 복구 — 재개 리스너 · "다시 시도" 버튼 공용.
+   * 오프라인 화면이 떠 있었을 때만 reload (평상시 재개마다 웹뷰 상태를 날리지 않기 위해).
+   * wasOfflineRef 를 내려 두어, 훅이 뒤늦게 살아나도 위 자동 복귀가 같은 reload 를
+   * 두 번 돌리지 않는다.
+   */
+  const recoverOnline = useCallback(() => {
+    setProbedOnline(true)
+    setLoadError(false)
+    if (offlineRef.current) {
+      wasOfflineRef.current = false
+      webViewRef.current?.reload()
+    }
+  }, [])
+
+  /**
+   * ② 재개(foreground) 시 네트워크 **실측** — 훅 고착 자동 탈출 (수리 본체).
+   *
+   * 케이스 계약:
+   *   - 재개 + 실제 온라인 + 훅 고착 → 여기서 자동 탈출 (사용자 개입 불필요)
+   *   - 재개 + 실제 오프라인        → override 반납 · 오프라인 화면 유지 ·
+   *                                   연결되면 위 wasOfflineRef 자동 복귀가 처리
+   *   - 평상시 훅 정상              → 판정 결과가 훅과 동일 · 훅이 다시 발화하면 반납
+   *   - 실측 API 실패              → 아무것도 안 바꿈 = 훅 값 폴백 (더 나빠지지 않기)
+   *   - 탭 다중 인스턴스            → 각자 자기 웹뷰만 복구 (서로 무해)
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return
+      void Network.getNetworkStateAsync()
+        .then((state) => {
+          // 미연결 실측은 단정하지 않고 훅·loadError 판정에 맡긴다 (위 주석 참조)
+          if (state.isConnected === false) {
+            setProbedOnline(null)
+            return
+          }
+          recoverOnline()
+        })
+        .catch(() => {
+          // 실측 실패 → 훅 값 폴백
+        })
+    })
+    return () => sub.remove()
+  }, [recoverOnline])
+
   // ② WebView 네트워크 로드 에러 → 오프라인 화면 (Safari 흰 에러 화면 노출 방지).
   // iOS NSURLError 중 네트워크 가용성 계열만 처리 (SSL·잘못된 URL·서버 응답 오류 제외).
   const onError = useCallback((e: WebViewErrorEvent) => {
@@ -259,10 +340,30 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
     }
   }, [])
 
+  /**
+   * ② "다시 시도" — 실측 기반. 훅이 고착돼 있어도 실측이 '연결됨' 이면 여기서 탈출한다
+   * (기존엔 loadError 만 지워서, 훅 고착 케이스에선 버튼이 판정을 못 바꿨다).
+   * 미연결·실측 실패면 기존 동작 그대로 — 재로드 시도 후 실패하면 onError 가 다시
+   * 오프라인 화면을 띄운다 (진짜 오프라인).
+   */
   const handleOfflineRetry = useCallback(() => {
-    setLoadError(false)
-    webViewRef.current?.reload()
-  }, [])
+    const retryLoad = () => {
+      setLoadError(false)
+      webViewRef.current?.reload()
+    }
+    void Network.getNetworkStateAsync()
+      .then((state) => {
+        if (state.isConnected === false) {
+          setProbedOnline(null)
+          retryLoad()
+          return
+        }
+        recoverOnline()
+      })
+      .catch(() => {
+        retryLoad()
+      })
+  }, [recoverOnline])
 
   // iOS 네이티브 쿠키 저장소의 refresh_token 박제 제거 — 첫 로드가 끝났으면 웹뷰로의
   // 쿠키 시드가 이미 끝난 시점이라 지워도 안전하고, 이후 재마운트·reload 가 구세대
