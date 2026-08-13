@@ -36,6 +36,7 @@ import {
   shouldShowValueMomentSoftAsk,
 } from '@/utils/softAsk'
 import { clearNativeRefreshTokenCookie } from '@/utils/cookies'
+import * as refreshLock from '@/utils/refreshLockManager'
 import { syncAlarmPrompt } from '@/api/notifications'
 import { PermissionSoftAskModal } from '@/components/PermissionSoftAskModal'
 
@@ -179,6 +180,9 @@ interface AppWebViewProps {
   onExitDemo?: () => void
 }
 
+/** 회전 락 중재자에 이 웹뷰를 식별시키는 id (탭마다 인스턴스 1개 · logcat 추적용) */
+let webViewSeq = 0
+
 function buildFullUrl(path: string): string {
   // native mode flag 를 항상 붙임 · UA 감지 실패 시 폴백
   const separator = path.includes('?') ? '&' : '?'
@@ -190,6 +194,9 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
   const palette = getPalette(theme)
   const webViewRef = useRef<WebView>(null)
   const currentUrlRef = useRef<string | null>(null)
+  // 🔴 회전 락 — 이 인스턴스의 식별자 + 로드 완료 여부 (주입 가드 · 아래 register effect 참조)
+  const webViewIdRef = useRef<string>(`wv${++webViewSeq}:${path}`)
+  const loadedRef = useRef(false)
   // 데모 이탈은 1회만 트리거 (onNavigationStateChange 다중 발화 · 중복 복귀 방지)
   const exitedRef = useRef(false)
   const exitDemo = useCallback(() => {
@@ -371,9 +378,27 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
   // (로그인 직후 세션도 같은 순서 — 로그인 → (tabs) 마운트 → 웹뷰 로드 → 여기)
   const rtCookieClearedRef = useRef(false)
   const onLoadEnd = useCallback(() => {
+    loadedRef.current = true // 회전 락 주입 가드 (rtCookie 조기 반환보다 앞)
     if (rtCookieClearedRef.current) return
     rtCookieClearedRef.current = true
     void clearNativeRefreshTokenCookie()
+  }, [])
+
+  /**
+   * 🔴 회전 락 중재자에 이 웹뷰 등록 (plan refresh-rotation-lock).
+   *
+   * 탭마다 웹뷰가 따로 있어 각자 refresh 를 회전시키다 같은 RT 를 동시에 소비했다.
+   * 등록해 두면 ① 이 웹뷰의 락 요청에 grant 를 회신받고 ② 남이 회전에 성공했을 때
+   * 새 access 방송을 받는다. 로드 전 주입은 웹 리스너가 없어 무의미하므로 건너뛴다
+   * (방송 유실 = 웹 폴백으로 단독 회전 · 더 나빠지지 않음).
+   */
+  useEffect(() => {
+    const id = webViewIdRef.current
+    refreshLock.register(id, (js) => {
+      if (!loadedRef.current) return
+      webViewRef.current?.injectJavaScript(js)
+    })
+    return () => refreshLock.unregister(id)
   }, [])
 
   // ① 앱 잠금 상태 회신 — 웹으로 CustomEvent(chwippo:app-lock-state) 주입.
@@ -576,6 +601,8 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
         | { type: 'deadline-saved' }
         | { type: 'get-app-lock' }
         | { type: 'set-app-lock'; enabled: boolean }
+        | { type: 'refresh-lock-request'; reqId: string }
+        | { type: 'refresh-lock-release'; reqId: string }
         | { type: string }
 
       if (msg.type === 'theme') {
@@ -592,6 +619,25 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
         const t = (msg as { accessToken?: unknown }).accessToken
         if (typeof t === 'string' && t) {
           useAuthStore.getState().setToken(t)
+          // 🔴 회전 성공 = 락 해제 신호 겸용 — 새 access 를 전 웹뷰에 방송해
+          // 대기 중인 다른 탭들이 HTTP 없이 해소되게 한다 (plan refresh-rotation-lock).
+          refreshLock.handleTokenReceived(t)
+        }
+        return
+      }
+      // 🔴 회전 락 — 웹뷰가 회전 직전 요청, 선착순 1명만 grant (나머지는 방송으로 해소)
+      if (msg.type === 'refresh-lock-request') {
+        const reqId = (msg as { reqId?: unknown }).reqId
+        if (typeof reqId === 'string' && reqId) {
+          refreshLock.handleLockRequest(webViewIdRef.current, reqId)
+        }
+        return
+      }
+      // 🔴 회전 락 — 회전 실패 시 명시 해제 (성공은 위 token 이 겸용)
+      if (msg.type === 'refresh-lock-release') {
+        const reqId = (msg as { reqId?: unknown }).reqId
+        if (typeof reqId === 'string' && reqId) {
+          refreshLock.handleLockRelease(reqId)
         }
         return
       }
