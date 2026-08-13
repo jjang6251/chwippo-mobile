@@ -12,7 +12,7 @@
  *   - holder 가 있으면 큐 대기 — grant 을 보내지 않는다 (승자의 방송이 해소한다)
  *   - `token`(회전 성공) → holder 해제 + **전 웹뷰에 token-broadcast** + 큐 비움
  *   - `refresh-lock-release`(회전 실패) → holder 해제 + 큐 첫 대기자에 grant 승계
- *   - holder 5s 타임아웃 → 웹뷰가 죽어도(파괴·크래시) 락이 영구히 묶이지 않는다
+ *   - holder 30s 타임아웃 → 웹뷰가 죽어도(파괴·크래시) 락이 영구히 묶이지 않는다
  *
  * 웹은 무응답 700ms 에 단독 회전으로 폴백하므로, 이 모듈이 통째로 실패해도
  * 동작은 수리 전과 같다 (새 오류를 만들지 않는다).
@@ -29,8 +29,16 @@ interface LockEntry {
   reqId: string
 }
 
-/** holder 가 죽었을 때 락을 되찾기까지의 상한 (웹 대기 상한 8s 보다 짧게) */
-const HOLDER_TIMEOUT_MS = 5000
+/**
+ * holder 가 죽었을 때 락을 되찾기까지의 상한.
+ *
+ * 🔴 부등식 (2026-08-13 실기 수리): **최악 회전 < 이 값 < 웹 대기 상한**
+ *   최악 회전 ≈ 24.75s (웹 3시도 × HTTP 8s + 409 backoff 250+500) < 30s < 웹 상한 35s.
+ * 옛 값 5s 는 "정상 회전 150~400ms" 기준이었고, 재개 직후 Wi-Fi 재결합·DNS·TLS 콜드
+ * 스타트로 10s 걸린 회전을 **in-flight 중에** 끊어 대기자에게 승계 → 동시 회전을 만들었다.
+ * 이 값은 "웹뷰가 죽었다"를 판정하는 값이지 "회전이 느리다"를 판정하는 값이 아니다.
+ */
+const HOLDER_TIMEOUT_MS = 30000
 
 const webviews = new Map<string, InjectFn>()
 const queue: LockEntry[] = []
@@ -63,7 +71,9 @@ function grant(entry: LockEntry): void {
   holder = entry
   clearHolderTimer()
   holderTimer = setTimeout(() => {
-    log(`holder timeout 5s (${entry.webviewId}) → 자동 해제`)
+    log(
+      `holder timeout ${HOLDER_TIMEOUT_MS / 1000}s (${entry.webviewId}) → 자동 해제`,
+    )
     holder = null
     holderTimer = null
     promoteNext()
@@ -108,7 +118,7 @@ export function handleLockRequest(webviewId: string, reqId: string): void {
       "큐에 넣었다"를 반드시 회신한다 — 없으면 웹은 '대기 중'과 '락 관리자 없는 구앱'을
       구분할 수 없어 무응답 폴백(700ms)을 그대로 태우고, 승자의 회전이 700ms 만 넘겨도
       대기자 전원이 단독 회전으로 흩어져 수리가 무력화된다. 이 회신을 받은 웹은 폴백을
-      걷고 상한(8s)까지 승자의 방송·승계 grant 를 기다린다.
+      걷고 상한(35s)까지 승자의 방송·승계 grant 를 기다린다.
     */
     injectEvent(webviewId, 'chwippo:refresh-lock-queued', { reqId })
     log(`queue ${webviewId} (holder=${holder.webviewId} · 대기 ${queue.length})`)
@@ -138,7 +148,7 @@ export function handleLockRelease(reqId: string): void {
     /*
       holder 가 아닌 release — 웹이 700ms 폴백으로 단독 회전했다가 실패한 대기자의 것이다.
       큐에서도 지운다. 안 지우면 나중에 이 죽은 reqId 로 승계 grant 이 가고(웹은 reqId
-      불일치로 무시) 락이 holder 타임아웃 5s 까지 통째로 묶인다.
+      불일치로 무시) 락이 holder 타임아웃 30s 까지 통째로 묶인다.
     */
     const i = queue.findIndex((e) => e.reqId === reqId)
     if (i >= 0) queue.splice(i, 1)
