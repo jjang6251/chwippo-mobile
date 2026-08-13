@@ -603,6 +603,7 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
         | { type: 'set-app-lock'; enabled: boolean }
         | { type: 'refresh-lock-request'; reqId: string }
         | { type: 'refresh-lock-release'; reqId: string }
+        | { type: 'refresh-trace'; event: string; ms?: number; info?: string }
         | { type: string }
 
       if (msg.type === 'theme') {
@@ -638,6 +639,27 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
         const reqId = (msg as { reqId?: unknown }).reqId
         if (typeof reqId === 'string' && reqId) {
           refreshLock.handleLockRelease(reqId)
+        }
+        return
+      }
+      /*
+        🔬 진단 breadcrumb — 웹 회전 구간을 logcat 으로 끌어낸다 (R2 원인 규명 · 임시 계측).
+        프로덕션 웹의 console 은 여기 안 나오므로, 승자가 grant 후 침묵한 구간을 보려면
+        브리지로 받아 네이티브가 대신 찍어야 한다. `[refreshLock]` 과 나란히 읽히게 포맷 통일.
+      */
+      if (msg.type === 'refresh-trace') {
+        const { event, ms, info } = msg as {
+          event?: unknown
+          ms?: unknown
+          info?: unknown
+        }
+        if (typeof event === 'string' && event) {
+          const msPart =
+            typeof ms === 'number' && Number.isFinite(ms) ? ` ${ms}ms` : ''
+          const infoPart = typeof info === 'string' && info ? ` ${info}` : ''
+          console.log(
+            `[refreshTrace] ${webViewIdRef.current} ${event}${msPart}${infoPart}`,
+          )
         }
         return
       }
