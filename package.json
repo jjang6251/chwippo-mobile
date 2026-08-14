@@ -12,7 +12,18 @@
     "prebuild:ios": "expo prebuild --platform ios --clean",
     "prebuild:android": "expo prebuild --platform android --clean",
     "lint": "expo lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "jest"
+  },
+  "jest": {
+    "preset": "jest-expo",
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/android/",
+      "/ios/",
+      "/dist/",
+      "/.expo/"
+    ]
   },
   "dependencies": {
     "@bacons/apple-targets": "^0.0.5",
@@ -54,9 +65,12 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.0",
+    "@types/jest": "^29.5.14",
     "@types/react": "~19.1.10",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~10.0.0",
+    "jest": "~29.7.0",
+    "jest-expo": "~54.0.17",
     "typescript": "~5.9.2"
   },
   "expo": {
