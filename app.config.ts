@@ -206,6 +206,21 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         {
           icon: './assets/notification-icon.png',
           color: '#ffffff',
+          /*
+            🔴 FCM 기본 채널 지정 (2026-08-15 실기 발견).
+
+            앱이 **완전히 종료된 상태**에서 푸시가 오면 우리 채널 생성 코드(`ensureAndroidChannel`,
+            앱 실행 시 'default' 를 중요도 HIGH·소리·진동으로 생성)가 돌지 않는다. 그러면 FCM 이
+            자기 폴백 채널로 띄우고, **우리가 설정한 알림 품질이 통째로 적용되지 않는다**
+            (실측 08:00 브리핑: `channel=fcm_fallback_notification_channel` +
+            "Missing Default Notification Channel metadata in AndroidManifest" 경고).
+            마감 알림이 헤드업으로 안 뜰 수 있다는 뜻이다.
+
+            이 값이 AndroidManifest 의 `default_notification_channel_id` 메타데이터가 된다.
+            존재하지 않는 채널을 가리키면 알림이 아예 안 뜰 수 있으나, 푸시 토큰 등록 자체가
+            앱 안에서 일어나므로 **토큰이 있는 기기엔 채널이 반드시 이미 있다**.
+          */
+          defaultChannel: 'default',
         },
       ],
 
