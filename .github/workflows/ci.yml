@@ -8,7 +8,7 @@ on:
 
 jobs:
   static-checks:
-    name: Static Checks (expo-doctor · tsc · lint)
+    name: Static Checks (expo-doctor · tsc · lint · test)
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -37,3 +37,6 @@ jobs:
 
       - name: Lint
         run: npx expo lint
+
+      - name: Test
+        run: npm test

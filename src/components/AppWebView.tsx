@@ -8,7 +8,7 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { WebView, type WebViewMessageEvent } from 'react-native-webview'
-import { useNavigation } from 'expo-router'
+import { useFocusEffect, useNavigation } from 'expo-router'
 import type {
   ShouldStartLoadRequest,
   WebViewErrorEvent,
@@ -400,6 +400,24 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
     })
     return () => refreshLock.unregister(id)
   }, [])
+
+  /**
+   * 🔴 이 웹뷰가 지금 화면에 보이는지 락 중재자에 보고 (2026-08-14 vc15 실기 수리).
+   *
+   * Android WebView 는 화면에서 사라지면 JS 타이머를 정지시킨다 — 배경으로 밀린 웹뷰는
+   * 회전을 끝낼 수도, 자기 abort 타이머로 물러날 수도 없다(refreshLockManager 상단 참조).
+   * 웹은 자기가 밀린 걸 감지할 수 없고 어느 탭이 활성인지 아는 건 네이티브뿐이라
+   * 여기서 알려 준다. 탭 화면이므로 focus = 그 탭이 보이는 상태.
+   *
+   * 위 register effect 보다 뒤에 둔다 — 등록 전 활성 보고는 중재 대상이 없어 무의미하다.
+   */
+  useFocusEffect(
+    useCallback(() => {
+      const id = webViewIdRef.current
+      refreshLock.setActive(id, true)
+      return () => refreshLock.setActive(id, false)
+    }, []),
+  )
 
   // ① 앱 잠금 상태 회신 — 웹으로 CustomEvent(chwippo:app-lock-state) 주입.
   //   native → web 은 injectJavaScript 관례 (theme·navigation 동일).
