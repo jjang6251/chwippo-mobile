@@ -166,13 +166,24 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       'expo-router',
 
-      // Android targetSdk 35 · iOS deployment target 15.1
+      /*
+        Android targetSdk 36 (Android 16) · iOS deployment target 15.1
+
+        🔴 **2026-08-31 부터 API 36 미만은 Play 업데이트가 차단된다** (Play Console 경고 실측
+        2026-08-16). 비공개 테스트가 3~4주 걸려 마감을 한가운데서 넘기므로, 테스터 신고를
+        고쳐 올릴 수 없게 되기 전에 미리 올린다.
+
+        ⚠️ Android 16 을 타겟팅하면 **edge-to-edge 가 강제**되고 opt-out 이 불가능하다.
+        다만 API 35(Android 15)도 이미 강제였고 안전영역은 `react-native-safe-area-context`
+        로 처리 중이라 새로 깨질 지점은 없어야 한다 — **실기 확인이 이 변경의 검증 수단**이다
+        (이 레포엔 UI 테스트 하네스가 없다).
+      */
       [
         'expo-build-properties',
         {
           android: {
-            targetSdkVersion: 35,
-            compileSdkVersion: 35,
+            targetSdkVersion: 36,
+            compileSdkVersion: 36,
             minSdkVersion: 24,
             usesCleartextTraffic: false,
             extraMavenRepos: ['https://devrepo.kakao.com/nexus/content/groups/public/'],
