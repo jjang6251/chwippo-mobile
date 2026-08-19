@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   AppState,
   Platform,
+  type PlatformIOSStatic,
   StyleSheet,
   View,
 } from 'react-native'
@@ -65,6 +66,9 @@ import { PermissionSoftAskModal } from '@/components/PermissionSoftAskModal'
  * ## 딥링크 · chwippo:// scheme
  *   - WebView 안 chwippo:// 링크는 native 라우팅 (지금은 없음 · 미래 대비)
  */
+
+/** iPad = 웹 사이드바가 주 네비 — 네이티브 헤더·탭이 없어 상단 안전영역을 이 컴포넌트가 처리 */
+const IS_PAD = Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true
 
 const WEB_URL =
   (Constants.expoConfig?.extra?.webUrl as string | undefined) ??
@@ -777,11 +781,12 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
   }, [])
 
   return (
-    // 탭 화면: top 은 NativeHeader(Tabs header), bottom 은 native tab bar 가 관리 → 중복 inset 방지(edges=[]).
+    // 탭 화면(iPhone): top 은 NativeHeader(Tabs header), bottom 은 native tab bar 가 관리 → 중복 inset 방지(edges=[]).
     // 데모 화면: 탭·헤더가 없는 단일 스크린이라 상단 안전영역(노치·상태바)을 여기서 직접 처리.
+    // iPad: 헤더·탭 둘 다 숨김(웹 사이드바가 주 네비 — 이중 헤더 2026-08-19 실기) → 데모와 같은 방식으로 top 처리.
     <SafeAreaView
       style={[styles.container, { backgroundColor: palette.bg }]}
-      edges={demo ? ['top'] : []}
+      edges={demo || IS_PAD ? ['top'] : []}
     >
       <WebView
         ref={webViewRef}
