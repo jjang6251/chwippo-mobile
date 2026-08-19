@@ -45,6 +45,20 @@ export const DEMO_TAB_META: readonly TabMeta[] = [
 export const TAB_ICON_SIZE = 22
 
 /**
+ * 🔴 iPad 는 하단 탭을 숨긴다 (CEO 결정 2026-08-19) — 웹 사이드바(접이식 레일, ADR-075)가
+ * 주 네비가 된다. iPad 폭(≥1024px)에선 웹뷰 안 사이드바가 어차피 떠서, 탭을 유지하면
+ * **이중 네비**가 된다 (supportsTablet 전환에서 발견).
+ *
+ * ⚠️ 리스크 수용 기록: 하단 탭은 Apple 4.2(웹 클리퍼 리젝) 방어 장치였다. iPad 에서
+ * 웹 사이드바만 남기는 것은 그 원칙의 예외이며 CEO 가 리스크를 알고 결정했다 —
+ * 방어는 iPhone 탭바·네이티브 헤더·알림·공유 확장이 계속 담당한다.
+ * (Platform.isPad 는 iOS 전용 — Android 태블릿은 vc20 때 별도 판정)
+ */
+export function shouldHideTabBar(isPad: boolean): boolean {
+  return isPad
+}
+
+/**
  * 탭바 공통 스타일 옵션 — 실서비스 `(tabs)`·데모 `demo/` 가 공유 (스타일 이중화 방지).
  * headerShown·header 는 레이아웃별 결정(실서비스=NativeHeader · 데모=미노출)이라 여기 안 둠.
  */
