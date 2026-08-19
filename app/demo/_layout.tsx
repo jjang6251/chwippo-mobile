@@ -1,8 +1,9 @@
+import { Platform, type PlatformIOSStatic } from 'react-native'
 import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
-import { DEMO_TAB_META, TAB_ICON_SIZE, makeTabBarOptions } from '@/navigation/tabMeta'
+import { DEMO_TAB_META, TAB_ICON_SIZE, makeTabBarOptions, shouldHideTabBar } from '@/navigation/tabMeta'
 
 /**
  * 데모(둘러보기) 하단 탭 — 실서비스 (tabs) 를 미러. 탭 정의는 @/navigation/tabMeta 공유.
@@ -26,6 +27,10 @@ export default function DemoTabsLayout() {
       screenOptions={{
         headerShown: false,
         ...makeTabBarOptions(palette),
+        // iPad = 웹 사이드바가 주 네비 — 하단 탭 숨김 (tabMeta.shouldHideTabBar 주석 참조)
+        ...(shouldHideTabBar(Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true)
+          ? { tabBarStyle: { display: 'none' as const } }
+          : {}),
       }}
     >
       {DEMO_TAB_META.map(({ name, title, icon }) => (

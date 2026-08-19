@@ -1,10 +1,11 @@
+import { Platform, type PlatformIOSStatic } from 'react-native'
 import { Tabs } from 'expo-router'
 
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
 import { NativeHeader } from '@/components/NativeHeader'
-import { TAB_META, TAB_ICON_SIZE, makeTabBarOptions } from '@/navigation/tabMeta'
+import { TAB_META, TAB_ICON_SIZE, makeTabBarOptions, shouldHideTabBar } from '@/navigation/tabMeta'
 
 /**
  * Native Tab bar — Apple 4.2 방어 필수 (웹 네비 절대 노출 X).
@@ -29,6 +30,10 @@ export default function TabsLayout() {
         headerShown: true,
         header: () => <NativeHeader />,
         ...makeTabBarOptions(palette),
+        // iPad = 웹 사이드바가 주 네비 — 하단 탭 숨김 (tabMeta.shouldHideTabBar 주석 참조)
+        ...(shouldHideTabBar(Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true)
+          ? { tabBarStyle: { display: 'none' as const } }
+          : {}),
       }}
     >
       {TAB_META.map(({ name, title, icon }) => (
