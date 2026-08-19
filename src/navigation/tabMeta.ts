@@ -12,14 +12,28 @@ export interface TabMeta {
 }
 
 /**
- * 네이티브 하단 탭 정의 — 실서비스 `(tabs)` 와 데모 `demo/` 탭이 공유하는 단일 소스.
- * 실서비스 탭(순서·타이틀·아이콘)을 바꾸면 데모 탭이 자동으로 따라간다(이중 정의 방지).
+ * 네이티브 하단 탭 정의.
+ *
+ * 🔴 2026-08-19 실서비스/데모 **분리** — 원래 한 배열을 공유했는데, 탭 스왑(내정보 → 공부
+ * 노트, CEO 결정 2026-08-18)이 **실서비스에만** 해당한다: 웹 데모엔 공부 노트 라우트·샘플
+ * 데이터가 없어 데모는 기존 5탭(내정보 포함)을 유지한다 (웹 MobileNav 와 같은 판정).
+ * 공유를 유지한 채 스왑하면 데모 탭이 /demo/study-notes(비존재 → 캘린더로 튕김)를 가리킨다.
  *
  * 소비처:
- *   - app/(tabs)/_layout.tsx    (실서비스 · NativeHeader + 알림)
- *   - app/demo/_layout.tsx      (데모 · 헤더 없음 · 웹뷰 = /demo/*)
+ *   - app/(tabs)/_layout.tsx    (실서비스 · TAB_META)
+ *   - app/demo/_layout.tsx      (데모 · DEMO_TAB_META)
  */
 export const TAB_META: readonly TabMeta[] = [
+  { name: 'index', title: '캘린더', icon: 'calendar-outline' },
+  { name: 'board', title: '보드', icon: 'list-outline' },
+  { name: 'growth', title: '회고', icon: 'grid-outline' },
+  // 내정보 자리 → 공부 노트 (탭은 "매일 여는 습관 표면" 기준 — 내정보는 /myinfo 웹 CTA 로 진입)
+  { name: 'study-notes', title: '공부 노트', icon: 'book-outline' },
+  { name: 'settings', title: '설정', icon: 'settings-outline' },
+]
+
+/** 데모 전용 — 기존 5탭 불변 (공부 노트 데모 라우트가 생기면 TAB_META 로 재통합) */
+export const DEMO_TAB_META: readonly TabMeta[] = [
   { name: 'index', title: '캘린더', icon: 'calendar-outline' },
   { name: 'board', title: '보드', icon: 'list-outline' },
   { name: 'growth', title: '회고', icon: 'grid-outline' },
