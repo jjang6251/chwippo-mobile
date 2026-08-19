@@ -21,19 +21,22 @@ import { TAB_META, TAB_ICON_SIZE, makeTabBarOptions, shouldHideTabBar } from '@/
 export default function TabsLayout() {
   const theme = useThemeStore((s) => s.theme)
   const palette = getPalette(theme)
+  const isPad = Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true
 
   return (
     <Tabs
       initialRouteName="index"
       backBehavior="initialRoute"
       screenOptions={{
-        headerShown: true,
-        header: () => <NativeHeader />,
+        // iPad = 웹 사이드바가 주 네비 — 하단 탭 + 네이티브 헤더 둘 다 숨김.
+        // 헤더만 남기면 웹 사이드바(브랜드·알림 종)와 이중 헤더가 된다 (2026-08-19 iPad 실기).
+        // 헤더가 담당하던 상단 safe-area 는 AppWebView 가 isPad 에서 edges=['top'] 으로 넘겨받는다.
+        ...(isPad
+          ? { headerShown: false }
+          : { headerShown: true, header: () => <NativeHeader /> }),
         ...makeTabBarOptions(palette),
-        // iPad = 웹 사이드바가 주 네비 — 하단 탭 숨김 (tabMeta.shouldHideTabBar 주석 참조)
-        ...(shouldHideTabBar(Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true)
-          ? { tabBarStyle: { display: 'none' as const } }
-          : {}),
+        // (tabMeta.shouldHideTabBar 주석 참조 — 4.2 리스크 수용 기록)
+        ...(shouldHideTabBar(isPad) ? { tabBarStyle: { display: 'none' as const } } : {}),
       }}
     >
       {TAB_META.map(({ name, title, icon }) => (
