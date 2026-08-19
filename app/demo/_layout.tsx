@@ -2,7 +2,7 @@ import { Tabs } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons'
 import { useThemeStore } from '@/stores/themeStore'
 import { getPalette } from '@/theme/palette'
-import { TAB_META, TAB_ICON_SIZE, makeTabBarOptions } from '@/navigation/tabMeta'
+import { DEMO_TAB_META, TAB_ICON_SIZE, makeTabBarOptions } from '@/navigation/tabMeta'
 
 /**
  * 데모(둘러보기) 하단 탭 — 실서비스 (tabs) 를 미러. 탭 정의는 @/navigation/tabMeta 공유.
@@ -28,7 +28,7 @@ export default function DemoTabsLayout() {
         ...makeTabBarOptions(palette),
       }}
     >
-      {TAB_META.map(({ name, title, icon }) => (
+      {DEMO_TAB_META.map(({ name, title, icon }) => (
         <Tabs.Screen
           key={name}
           name={name}

@@ -32,7 +32,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     slug: 'chwippo-mobile',
     // 0.1.0 은 App Store 승인으로 트랙 마감 (Apple 90186) — 새 빌드는 버전 상향 필수
     // 0.1.1(빌드 17)도 승인·출시로 트랙 마감 — 같은 버전으로 새 빌드 제출 불가
-    version: '0.1.2',
+    // 0.1.2(빌드 20)는 8/14 ASC 제출 상태 — 심사 단계 미상이라 충돌 회피 겸 iPad 지원으로 상향
+    version: '0.1.3',
     orientation: 'portrait',
     scheme: 'chwippo',
     userInterfaceStyle: 'automatic',
@@ -48,7 +49,15 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // === iOS ===
     ios: {
       bundleIdentifier: 'com.chwippo.app',
-      supportsTablet: false,
+      /*
+       * iPad 정식 지원 (2026-08-19 · 대장 7). WebView + 반응형 웹이라 레이아웃은 lg(1024px)
+       * 분기가 그대로 탄다 — iPad 는 세로(1024pt)에서도 사이드바가 뜨는 데스크탑형.
+       * 🔴 회전 정책: 루트 orientation 'portrait' 는 iPhone 잠금 유지용이고, iPad 만
+       * infoPlist ~ipad 키로 4방향 전부 연다 — 가로가 오히려 주 사용 자세(목차·분할 시야).
+       * requiresFullScreen 은 두지 않는다: 전 방향 지원이면 불필요하고, Split View 는
+       * 반응형 웹이라 좁아지면 모바일 레이아웃으로 자연 전환된다 (별도 대응 0).
+       */
+      supportsTablet: true,
       appleTeamId: process.env.APPLE_TEAM_ID ?? undefined,
 
       // Guideline 5.1.1 Privacy Manifest (ITMS-91061 강제 · 2025/2/12~)
@@ -76,6 +85,14 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
 
       infoPlist: {
+        // iPad 전용 회전 4방향 (iPhone 은 루트 orientation=portrait 가 잠근다 — supportsTablet 주석)
+        'UISupportedInterfaceOrientations~ipad': [
+          'UIInterfaceOrientationPortrait',
+          'UIInterfaceOrientationPortraitUpsideDown',
+          'UIInterfaceOrientationLandscapeLeft',
+          'UIInterfaceOrientationLandscapeRight',
+        ],
+
         // App Store 제품 페이지 "언어" 표기 — 미선언 시 Expo 기본값(영어)이 바이너리에
         // 박혀 한국 스토어에 "언어: 영어"로 노출된다 (0.1.1 빌드 14까지의 상태)
         CFBundleDevelopmentRegion: 'ko',
