@@ -33,7 +33,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     // 0.1.0 은 App Store 승인으로 트랙 마감 (Apple 90186) — 새 빌드는 버전 상향 필수
     // 0.1.1(빌드 17)도 승인·출시로 트랙 마감 — 같은 버전으로 새 빌드 제출 불가
     // 0.1.2(빌드 20)는 8/14 ASC 제출 상태 — 심사 단계 미상이라 충돌 회피 겸 iPad 지원으로 상향
-    version: '0.1.3',
+    version: '0.1.4',
     orientation: 'portrait',
     scheme: 'chwippo',
     userInterfaceStyle: 'automatic',
