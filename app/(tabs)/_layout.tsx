@@ -1,4 +1,4 @@
-import { Platform, type PlatformIOSStatic } from 'react-native'
+import { Platform, useWindowDimensions, type PlatformIOSStatic } from 'react-native'
 import { Tabs } from 'expo-router'
 
 import { Ionicons } from '@expo/vector-icons'
@@ -22,6 +22,8 @@ export default function TabsLayout() {
   const theme = useThemeStore((s) => s.theme)
   const palette = getPalette(theme)
   const isPad = Platform.OS === 'ios' && (Platform as PlatformIOSStatic).isPad === true
+  // 회전·Split View 시 리렌더 → 탭바 표시/숨김이 폭을 따라간다 (tabMeta 2026-09-03 정정)
+  const { width } = useWindowDimensions()
 
   return (
     <Tabs
@@ -36,7 +38,7 @@ export default function TabsLayout() {
           : { headerShown: true, header: () => <NativeHeader /> }),
         ...makeTabBarOptions(palette),
         // (tabMeta.shouldHideTabBar 주석 참조 — 4.2 리스크 수용 기록)
-        ...(shouldHideTabBar(isPad) ? { tabBarStyle: { display: 'none' as const } } : {}),
+        ...(shouldHideTabBar(isPad, width) ? { tabBarStyle: { display: 'none' as const } } : {}),
       }}
     >
       {TAB_META.map(({ name, title, icon }) => (

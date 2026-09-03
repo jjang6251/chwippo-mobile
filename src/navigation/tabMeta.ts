@@ -45,17 +45,28 @@ export const DEMO_TAB_META: readonly TabMeta[] = [
 export const TAB_ICON_SIZE = 22
 
 /**
+ * 웹 사이드바(chwippo-front Sidebar)가 노출되는 최소 폭 — Tailwind `lg:` 문턱과 짝.
+ * 웹이 이 값을 바꾸면 여기도 같이 바뀌어야 한다 (Sidebar.tsx `hidden lg:flex`).
+ */
+export const WEB_SIDEBAR_MIN_WIDTH = 1024
+
+/**
  * 🔴 iPad 는 하단 탭을 숨긴다 (CEO 결정 2026-08-19) — 웹 사이드바(접이식 레일, ADR-075)가
  * 주 네비가 된다. iPad 폭(≥1024px)에선 웹뷰 안 사이드바가 어차피 떠서, 탭을 유지하면
  * **이중 네비**가 된다 (supportsTablet 전환에서 발견).
+ *
+ * 🔧 2026-09-03 정정 — 「iPad 폭 ≥1024」 전제는 **가로에서만** 참이다. 세로(768~834pt)와
+ * Split View 에선 웹 사이드바(`lg:` = 1024px)가 안 떠서 네비가 전무해졌다 (iPad 세로 실기).
+ * 그래서 판정을 기기(isPad)가 아니라 **현재 창 폭**으로 바꾼다: 사이드바가 실제로 보일
+ * 폭에서만 탭을 숨긴다. 회전·Split View 로 폭이 줄면 탭이 복귀한다.
  *
  * ⚠️ 리스크 수용 기록: 하단 탭은 Apple 4.2(웹 클리퍼 리젝) 방어 장치였다. iPad 에서
  * 웹 사이드바만 남기는 것은 그 원칙의 예외이며 CEO 가 리스크를 알고 결정했다 —
  * 방어는 iPhone 탭바·네이티브 헤더·알림·공유 확장이 계속 담당한다.
  * (Platform.isPad 는 iOS 전용 — Android 태블릿은 vc20 때 별도 판정)
  */
-export function shouldHideTabBar(isPad: boolean): boolean {
-  return isPad
+export function shouldHideTabBar(isPad: boolean, windowWidth: number): boolean {
+  return isPad && windowWidth >= WEB_SIDEBAR_MIN_WIDTH
 }
 
 /**
