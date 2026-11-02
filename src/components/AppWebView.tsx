@@ -40,6 +40,7 @@ import { clearNativeRefreshTokenCookie } from '@/utils/cookies'
 import * as refreshLock from '@/utils/refreshLockManager'
 import { syncAlarmPrompt } from '@/api/notifications'
 import { PermissionSoftAskModal } from '@/components/PermissionSoftAskModal'
+import { subscribeHardwareBack } from '@/navigation/hardwareBack'
 
 /**
  * WebView wrapper — chwippo-front 웹 화면을 감쌈.
@@ -198,6 +199,8 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
   const palette = getPalette(theme)
   const webViewRef = useRef<WebView>(null)
   const currentUrlRef = useRef<string | null>(null)
+  // Android 뒤로가기 판정용 — 웹뷰 기록에 뒤 칸이 있는가(onNavigationStateChange 가 갱신)
+  const canGoBackRef = useRef(false)
   // 🔴 회전 락 — 이 인스턴스의 식별자 + 로드 완료 여부 (주입 가드 · 아래 register effect 참조)
   const webViewIdRef = useRef<string>(`wv${++webViewSeq}:${path}`)
   const loadedRef = useRef(false)
@@ -421,6 +424,22 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
       refreshLock.setActive(id, true)
       return () => refreshLock.setActive(id, false)
     }, []),
+  )
+
+  /**
+   * Android 하드웨어 뒤로가기 = 웹 안에서 한 칸 뒤로(`navigation/hardwareBack.ts`).
+   * 보이는 탭의 웹뷰만 — 포커스를 얻을 때 등록 · 잃을 때 해제. 뒤 칸이 없거나 오프라인 화면이면 지금 동작(탭 규칙 · OS).
+   * iOS 는 등록 자체를 안 한다.
+   */
+  useFocusEffect(
+    useCallback(
+      () =>
+        subscribeHardwareBack(
+          () => ({ canGoBack: canGoBackRef.current, offline: offlineRef.current }),
+          () => webViewRef.current?.goBack(),
+        ),
+      [],
+    ),
   )
 
   // ① 앱 잠금 상태 회신 — 웹으로 CustomEvent(chwippo:app-lock-state) 주입.
@@ -748,6 +767,8 @@ export function AppWebView({ path, demo = false, onExitDemo }: AppWebViewProps) 
 
   const onNavigationStateChange = useCallback((nav: WebViewNavigation) => {
     currentUrlRef.current = nav.url
+    // Android 는 SPA 주소 바뀜(pushState · popstate)에도 이 콜백이 온다(doUpdateVisitedHistory → loadingStart)
+    canGoBackRef.current = nav.canGoBack
     // 데모 SPA 이동(예: 배너 "둘러보기 종료" → '/') 감지 — iOS webview 의 history shim 이
     // pushState/replaceState/popstate 를 이 콜백으로 보고하므로 SPA 이탈도 잡힌다.
     // (full navigation 인 '/auth/*' OAuth 는 onShouldStartLoadWithRequest 가 먼저 가로챔)
