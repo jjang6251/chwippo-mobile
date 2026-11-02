@@ -1,5 +1,6 @@
 # === Expo / RN 기본 ===
 node_modules/
+node_modules
 .expo/
 .expo-shared/
 dist/
