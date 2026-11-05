@@ -20,6 +20,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 공개 저장소 — 작업 기록 · 사람 귀속 말(내부 문서의 번호 · 역할 이름)이 코드 · 문서 · 주석에 새지 않게.
+      # 「세션」은 로그인 세션 뜻으로 쓰여서 숫자가 붙은 꼴만 본다. 이 파일은 낱말을 적고 있어 뺀다.
+      # 그림 · 이진 파일(-I)과 lock 파일은 뺀다 — base64 해시에 낱말 글자가 우연히 끼면 내부 말 없이 막힌다.
+      # git grep 종료 코드: 1 = 못 찾음(통과) · 0 = 찾음(실패) · 그 밖 = git grep 오류(조용히 통과하지 않게 실패).
+      - name: Public repo internal-words guard
+        run: |
+          HITS=$(git grep -I -nE '대장 ?[0-9]|세션 ?[0-9]|커맨더|사장님|CEO' -- . ':!.github/workflows/ci.yml' ':!package-lock.json') && RC=0 || RC=$?
+          if [ "$RC" -eq 1 ]; then
+            echo "✅ internal-words guard clean"
+          elif [ "$RC" -eq 0 ]; then
+            echo "::error::공개 저장소에 내부 말이 있습니다 — 이유를 쓰고 내부 번호 · 역할 이름은 빼 주세요:"
+            echo "$HITS"
+            exit 1
+          else
+            echo "::error::내부 말 가드가 돌지 못했습니다(git grep 종료 코드 $RC)"
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:

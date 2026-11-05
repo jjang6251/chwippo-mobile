@@ -10,7 +10,6 @@
 - 백엔드: [`chwippo-back`](https://github.com/jjang6251/chwippo-back) (기존)
 - 웹: [`chwippo-front`](https://github.com/jjang6251/chwippo-front) (WebView 화면 재사용)
 
-> **Plan**: `~/.claude/plans/rn-hybrid-v2-storeready.md`
 > **심사 통과 확률 목표**: 75-85% 한 번에 통과
 
 ---
@@ -162,7 +161,6 @@ chwippo-mobile/
 
 ## 참고 문서
 
-- Plan: `~/.claude/plans/rn-hybrid-v2-storeready.md`
 - 백엔드: `~/Desktop/chwippo/chwippo-back`
 - 웹 (참조): `~/Desktop/chwippo/chwippo-front`
 - 프로젝트 전체 CLAUDE.md: `~/Desktop/chwippo/CLAUDE.md`

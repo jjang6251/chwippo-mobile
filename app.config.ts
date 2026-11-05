@@ -50,7 +50,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     ios: {
       bundleIdentifier: 'com.chwippo.app',
       /*
-       * iPad 정식 지원 (2026-08-19 · 대장 7). WebView + 반응형 웹이라 레이아웃은 lg(1024px)
+       * iPad 정식 지원 (2026-08-19). WebView + 반응형 웹이라 레이아웃은 lg(1024px)
        * 분기가 그대로 탄다 — iPad 는 세로(1024pt)에서도 사이드바가 뜨는 데스크탑형.
        * 🔴 회전 정책: 루트 orientation 'portrait' 는 iPhone 잠금 유지용이고, iPad 만
        * infoPlist ~ipad 키로 4방향 전부 연다 — 가로가 오히려 주 사용 자세(목차·분할 시야).
